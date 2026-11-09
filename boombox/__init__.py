@@ -1,3 +1,3 @@
 """Boom Box: acoustic startle response (ASR) recorder for macOS."""
 
-__version__ = "1.1"
+__version__ = "1.2"

@@ -388,6 +388,9 @@ class Session:
                 "video_time_s": round(t - self.t0, 6),
                 "type": STIMULUS_TYPES[tr["type"]],
                 "pulse_db": tr["pulse"]["level_db"] if tr.get("pulse") else None,
+                "pulse_stimulus": tr["pulse"]["stimulus"] if tr.get("pulse") else None,
+                "pulse_freq_hz": tr["pulse"]["freq_hz"]
+                if tr.get("pulse") and tr["pulse"]["stimulus"] == "tone" else None,
                 "prepulse_db": tr["prepulse"]["level_db"] if tr.get("prepulse") else None,
                 "interval_ms": tr["lead_ms"] if tr["type"] == "prepulse_pulse" else None,
             }))
