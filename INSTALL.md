@@ -36,10 +36,10 @@ Starting from scratch? Follow the full steps below.
 - **Not sure if it's already installed?** Open the **Terminal** app (press ⌘ + Space, type *Terminal*, press Return), type `conda --version` and press Return. If you see a version number, it's installed. If you see "command not found", install it.
 
 ## Step 3. Download the Boom Box program
-- Go to https://github.com/vtbrak/ASR.
+- Go to https://github.com/vtbrak/BoomBox.
   - If the page says "404" or "not found", ask the lab member who owns the program to give your GitHub account access.
 - Click the green **Code** button, then **Download ZIP**.
-- Open your **Downloads** folder and double-click the ZIP file to unzip it. You'll get a folder named **ASR-main** (or **ASR-1.2** if you downloaded version 1.2).
+- Open your **Downloads** folder and double-click the ZIP file to unzip it. You'll get a folder named **BoomBox-main** (or **BoomBox-1.2** if you downloaded version 1.2).
 - Move that folder to your **Desktop** and rename it **BoomBox**.
 
 ## Step 4. Run the one-time setup
@@ -163,9 +163,9 @@ Windows support is new in this version and has not yet been tested on a PC. Plea
 - Run it and keep the default choices, including **"Just Me"**. That choice doesn't need an administrator password.
 
 ### Step 2. Download the Boom Box program
-- Go to https://github.com/vtbrak/ASR, click the green **Code** button, then **Download ZIP**.
+- Go to https://github.com/vtbrak/BoomBox, click the green **Code** button, then **Download ZIP**.
 - In your **Downloads** folder, right-click the ZIP file and choose **Extract All…**, then **Extract**.
-- Move the extracted folder (**ASR-main**) to your **Desktop** and rename it **BoomBox**.
+- Move the extracted folder (**BoomBox-main**) to your **Desktop** and rename it **BoomBox**.
 
 ### Step 3. Run the one-time setup
 - Open the **BoomBox** folder and double-click **Boom_Box_Setup.bat**.
