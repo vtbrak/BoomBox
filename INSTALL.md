@@ -39,7 +39,7 @@ Starting from scratch? Follow the full steps below.
 - Go to https://github.com/vtbrak/BoomBox.
   - If the page says "404" or "not found", ask the lab member who owns the program to give your GitHub account access.
 - Click the green **Code** button, then **Download ZIP**.
-- Open your **Downloads** folder and double-click the ZIP file to unzip it. You'll get a folder named **BoomBox-main** (or **BoomBox-1.3** if you downloaded version 1.3).
+- Open your **Downloads** folder and double-click the ZIP file to unzip it. You'll get a folder named **BoomBox-main** (or **BoomBox-1.3.1** if you downloaded version 1.3.1).
 - Move that folder to your **Desktop** and rename it **BoomBox**.
 
 ## Step 4. Run the one-time setup

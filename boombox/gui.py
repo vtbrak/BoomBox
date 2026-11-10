@@ -170,9 +170,9 @@ class App:
         self.paned = paned
         # Keep the video panel at a fixed share of the window (the share changes when the
         # divider is dragged), so shrinking the window shrinks both sides.
-        self._right_frac = 0.45
+        self._right_frac = 0.25     # video panel starts at a quarter of the window width
         paned.bind("<ButtonRelease-1>", self._on_sash_moved, add="+")
-        self.root.bind("<Configure>", self._on_root_resize, add="+")
+        paned.bind("<Configure>", self._on_paned_resize, add="+")
 
         nb = ttk.Notebook(left)
         nb.pack(fill="both", expand=True)
@@ -230,12 +230,13 @@ class App:
             self.status_value_labels.append(lab)
             self.status_vars[key] = v
 
-    def _on_root_resize(self, event):
-        if event.widget is self.root:
-            self.root.after_idle(self._place_sash)
+    def _on_paned_resize(self, event):
+        # React to the panels' own resize (not the window's), so the width is already current.
+        if event.widget is self.paned:
+            self.root.after_idle(lambda w=event.width: self._place_sash(w))
 
-    def _place_sash(self):
-        width = self.paned.winfo_width()
+    def _place_sash(self, width=None):
+        width = width or self.paned.winfo_width()
         if width < 50:
             return
         right = width * self._right_frac
@@ -383,9 +384,11 @@ class App:
         ttk.Entry(add, textvariable=self.var_add_freq, width=8).pack(side="left", padx=4)
         ttk.Button(add, text="Add", command=self.add_cal_freq).pack(side="left")
         ttk.Button(add, text="Stop all sound", command=self.stop_cal_sound).pack(side="left", padx=20)
-        ttk.Button(add, text="Save calibration", style="Big.TButton",
-                   command=self.save_calibration).pack(side="right")
-        ttk.Button(add, text="Check selected protocol", command=self.check_protocol_levels).pack(side="right", padx=8)
+        actions = ttk.Frame(f)
+        actions.pack(fill="x", pady=(4, 8))
+        ttk.Button(actions, text="Check selected protocol", command=self.check_protocol_levels).pack(side="left")
+        ttk.Button(actions, text="Save calibration", style="Big.TButton",
+                   command=self.save_calibration).pack(side="left", padx=12)
         self.cal_freqs = sorted({int(float(k)) for k in self.cal.get("tones", {})}
                                 | set(calibration.DEFAULT_FREQS_HZ))
         self.cal_rows = {}
@@ -410,7 +413,13 @@ class App:
                 test.set(old[key][0])
                 meas.set(old[key][1])
             label = "White noise (RMS)" if key == "noise" else f"{key / 1000:g} kHz tone"
-            ttk.Label(self.cal_table, text=label).grid(row=i, column=0, sticky="w", padx=6)
+            cell = ttk.Frame(self.cal_table)
+            cell.grid(row=i, column=0, sticky="w", padx=6, pady=2)
+            ttk.Label(cell, text=label).pack(anchor="w")
+            if key != "noise" and key >= HIGH_TONE_HZ:
+                # Directly under the tone's name so it can't be missed.
+                ttk.Label(cell, text="⚠ Max 100 dB: speaker can blow out",
+                          foreground="#b00020").pack(anchor="w")
             ttk.Entry(self.cal_table, textvariable=test, width=8).grid(row=i, column=1, padx=6)
             btn = ttk.Button(self.cal_table, text="Play", width=6,
                              command=lambda k=key: self.toggle_cal_play(k))
@@ -423,9 +432,6 @@ class App:
             mx = tk.StringVar()
             ttk.Label(self.cal_table, textvariable=ref).grid(row=i, column=5, padx=6, sticky="w")
             ttk.Label(self.cal_table, textvariable=mx).grid(row=i, column=6, padx=6, sticky="w")
-            if key != "noise" and key >= HIGH_TONE_HZ:
-                ttk.Label(self.cal_table, text="⚠ Keep at or below 100 dB: the speaker can blow out",
-                          foreground="#b00020").grid(row=i, column=7, padx=6, sticky="w")
             self.cal_rows[key] = {"test": test, "meas": meas, "btn": btn, "ref": ref, "max": mx}
             meas.trace_add("write", lambda *a: self.update_cal_labels())
             test.trace_add("write", lambda *a: self.update_cal_labels())
