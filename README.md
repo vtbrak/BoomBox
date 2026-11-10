@@ -69,6 +69,9 @@ Until calibrated, levels are approximate and every log is marked `uncalibrated`.
 "Loudest possible" shows the maximum each frequency can reach; if a protocol asks for more, the
 session won't start (turn up the amplifier and recalibrate).
 
+**Speaker limit:** the 12, 16 and 20 kHz rows show a warning. The lab speaker can blow out above
+100 dB at those frequencies, so keep them at or below 100 dB.
+
 ## Camera (Camera tab)
 
 Default is **1280x720 at 30 fps**; 60 and 90 fps can be selected if the camera supports them
@@ -81,12 +84,26 @@ measure it (for example, film an LED that the program flashes or a hand clap the
 
 ## Protocols (Protocol tab)
 
-- **ASR Standard** (built in, locked): 15 tones at 120, 157, 185, 218, 248, 260, 291, 334, 353, 388,
-  419, 458, 486, 515 and 530 s; frequencies 12, 4, 16, 20, 8, 4, 20, 16, 12, 8, 8, 16, 4, 20, 12 kHz.
-  Each is a 10 ms tone burst with a raised-cosine envelope (5 ms rise, 5 ms fall, no plateau).
-  Level and background noise are editable after **Unlock for editing**; changes are saved under a
-  new name and *Restore original ASR protocol* brings back the original.
-- **New list**: any times and frequencies, typed in or generated (fixed or random gaps).
+Every protocol starts with a **5-minute habituation** in 65 dB background white noise. All tones are
+10 ms bursts with a raised-cosine envelope (5 ms rise, 5 ms fall, no plateau).
+
+Three protocols are built in and locked. Their settings are editable after **Unlock for editing**;
+changes are saved under a new name, and *Restore original* brings back the built-in version.
+
+- **Tone Volume Sensitivity** (formerly "ASR Standard"): 15 tones at 105 dB. Frequencies 12, 4, 16,
+  20, 8, 4, 20, 16, 12, 8, 8, 16, 4, 20, 12 kHz at 300, 337, 365, 398, 428, 440, 471, 514, 533, 568,
+  599, 638, 666, 695 and 710 s. That's the published series (first tone at 120 s), shifted so the
+  first tone comes right after the habituation.
+- **Startle Habituation**: 100 tones at 8 kHz and 115 dB, one every 15 s from 300 s. Recorded with
+  the `Startle Habituation` assay variant.
+- **Hearing Test**: the background noise turns off after the habituation, so quiet tones can be heard.
+  Then 8 kHz tones at 40, 50, 60, 70, 80, 90, 100, 110 and 120 dB, in two ascending and two descending
+  series (ascending, descending, ascending, descending), one every 15 s from 315 s: 36 tones.
+
+Other protocols:
+- **New list**: any times and frequencies, typed in or generated (fixed or random gaps). Each line is
+  `time (s), kHz`, with an optional third value for that tone's dB. *Noise off at* turns the
+  background noise off at a set time.
 - **PPI**: pulse and prepulse stimuli, prepulse levels above background, lead intervals, trial counts,
   pulse-alone blocks, random inter-trial intervals. *Preview schedule* shows the exact trial list.
 

@@ -81,6 +81,8 @@ class Session:
         self.recorder = None
         self.stopped_early = False
         self.result_text = ""
+        off = protocol.get("background_noise_off_s")
+        self.noise_off_s = None if off is None else float(off)   # e.g. after the habituation
 
         self.arena = settings["arena"]
         self.camera_label = settings["camera_label"]
@@ -162,6 +164,10 @@ class Session:
                 late = f", {ev.late_s * 1000:.1f} ms LATE" if ev.late_s > 0.001 else ""
                 self.log(f"Trial {tr['trial']} {ev.tag['role']} at {self.ms(ev.actual_perf):.1f} ms, "
                          f"frame {frame}{late}")
+        if self.noise_off_s is not None and self.elapsed() >= self.noise_off_s:
+            self.engine.set_noise_dbfs(None)
+            self.log(f"Background noise off (protocol: off at {self.noise_off_s:g} s).")
+            self.noise_off_s = None
         if self.camera.error:
             self.log(f"CAMERA ERROR: {self.camera.error}")
             self.stopped_early = True

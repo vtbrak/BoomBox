@@ -19,7 +19,7 @@ DEFAULT_SETTINGS = {
     "experimenters": [],
     "last_experimenter": "",
     "data_dir": str(DEFAULT_DATA_DIR),
-    "last_protocol": "ASR Standard",
+    "last_protocol": "Tone Volume Sensitivity",
     # Audio
     "output_device": "",          # "" = system default output
     "channel_mode": "both",       # both | left | right

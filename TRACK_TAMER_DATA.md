@@ -1,7 +1,7 @@
 # Boom Box data for Track Tamer
 
 What Boom Box saves beside each video, and how to read it. This describes
-**Boom Box 1.2**, writing **schema 1** of the Track Tamer video metadata
+**Boom Box 1.3**, writing **schema 1** of the Track Tamer video metadata
 standard (draft). It adds Boom Box's specifics to that standard and doesn't
 replace it.
 
@@ -60,7 +60,7 @@ recording starts and can differ from the file names by a second or so. Use
 | Field | How Boom Box fills it |
 |---|---|
 | `schema_version` | `1` |
-| `app_name`, `app_version` | `Boom Box`, e.g. `1.2` |
+| `app_name`, `app_version` | `Boom Box`, e.g. `1.3` |
 | `date`, `start_time` | The computer's clock at video frame 0 |
 | `assay` | Always `Acoustic Startle Response` |
 | `assay_variant` | Set per protocol: `Prepulse Inhibition`, `Startle Habituation`, or left out for plain startle |
@@ -207,7 +207,7 @@ These matter when choosing the window to search for a startle.
 |---|---|
 | `trials` | Per-trial detail (section 9) |
 | `protocol` | The full protocol used, including its name, tone shape and background noise level |
-| `protocol_name` | Its name, e.g. `ASR Standard` |
+| `protocol_name` | Its name, e.g. `Tone Volume Sensitivity` |
 | `schedule` | The planned trials |
 | `calibrated` | Whether a speaker calibration existed |
 | `calibration` | The calibration values used |
@@ -255,7 +255,7 @@ reached are always at the end.
 | `_mic_frame` | Video frame at `_mic_ms` |
 | `_mic_minus_actual_ms` | Delay from the computer to the microphone |
 
-**Frequency:** the built-in `ASR Standard` protocol plays 15 tones, three each at
+**Frequency:** the built-in `Tone Volume Sensitivity` protocol plays 15 tones, three each at
 4, 8, 12, 16 and 20 kHz, in a fixed order. Use `pulse_freq_hz` to group them.
 
 **dB levels are requested, not measured.** They're only true dB SPL if

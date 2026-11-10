@@ -1,8 +1,12 @@
 """Stimulus protocols and schedule generation.
 
 Two protocol types, stored as JSON in protocols/:
-  * "list": startle stimuli at listed times (the standard ASR protocol and custom lists)
+  * "list": startle stimuli at listed times (the built-in protocols and custom lists)
   * "ppi":  prepulse inhibition trials generated from editable parameters
+
+Every built-in protocol starts with a 5-minute habituation in background white
+noise. "background_noise_off_s" (optional) turns the noise off at that time,
+e.g. so quiet hearing-test stimuli aren't masked.
 
 A schedule is a list of trials. Every trial has a reference time (ref_time_s,
 from frame 0 of the video) and optional "pulse" and "prepulse" stimuli. For
@@ -18,37 +22,64 @@ import re
 
 from . import config
 
-BUILTIN_ASR_NAME = "ASR Standard"
-
-ASR_TIMES_S = [120, 157, 185, 218, 248, 260, 291, 334, 353, 388, 419, 458, 486, 515, 530]
-ASR_FREQS_KHZ = [12, 4, 16, 20, 8, 4, 20, 16, 12, 8, 8, 16, 4, 20, 12]
+HABITUATION_S = 300            # 5 minutes of background noise before the first stimulus
+TONE = {"stimulus": "tone", "rise_ms": 5.0, "plateau_ms": 0.0, "fall_ms": 5.0}
 
 # Track Tamer metadata standard: assay is always Acoustic Startle Response;
 # the variant comes from the protocol ("" = plain startle, left out of the info file).
 ASSAY = "Acoustic Startle Response"
 ASSAY_VARIANTS = ["", "Prepulse Inhibition", "Startle Habituation"]
 
-BUILTIN_ASR = {
-    "name": BUILTIN_ASR_NAME,
-    "type": "list",
-    "builtin": True,
-    "assay_variant": "",
-    "startle": {"stimulus": "tone", "level_db": 105.0,
-                "rise_ms": 5.0, "plateau_ms": 0.0, "fall_ms": 5.0},
-    "background_noise_db": 65.0,
-    "end_padding_s": 30.0,
-    "trials": [{"time_s": t, "freq_hz": f * 1000} for t, f in zip(ASR_TIMES_S, ASR_FREQS_KHZ)],
+# Tone Volume Sensitivity: the published startle series (first tone at 120 s),
+# shifted so the first tone comes right after the 5-minute habituation.
+TVS_NAME = "Tone Volume Sensitivity"
+TVS_PUBLISHED_TIMES_S = [120, 157, 185, 218, 248, 260, 291, 334, 353, 388, 419, 458, 486, 515, 530]
+TVS_TIMES_S = [t - TVS_PUBLISHED_TIMES_S[0] + HABITUATION_S for t in TVS_PUBLISHED_TIMES_S]
+TVS_FREQS_KHZ = [12, 4, 16, 20, 8, 4, 20, 16, 12, 8, 8, 16, 4, 20, 12]
+
+HABITUATION_NAME = "Startle Habituation"
+HEARING_NAME = "Hearing Test"
+HEARING_LEVELS_DB = [40, 50, 60, 70, 80, 90, 100, 110, 120]
+HEARING_ITI_S = 15.0
+# Two ascending and two descending series, alternating.
+HEARING_ORDER_DB = (HEARING_LEVELS_DB + HEARING_LEVELS_DB[::-1]) * 2
+
+BUILTINS = {
+    TVS_NAME: {
+        "name": TVS_NAME, "type": "list", "builtin": True, "assay_variant": "",
+        "startle": dict(TONE, level_db=105.0),
+        "background_noise_db": 65.0,
+        "end_padding_s": 30.0,
+        "trials": [{"time_s": t, "freq_hz": f * 1000} for t, f in zip(TVS_TIMES_S, TVS_FREQS_KHZ)],
+    },
+    HABITUATION_NAME: {
+        "name": HABITUATION_NAME, "type": "list", "builtin": True,
+        "assay_variant": "Startle Habituation",
+        "startle": dict(TONE, level_db=115.0),
+        "background_noise_db": 65.0,
+        "end_padding_s": 30.0,
+        "trials": [{"time_s": HABITUATION_S + 15 * i, "freq_hz": 8000} for i in range(100)],
+    },
+    HEARING_NAME: {
+        "name": HEARING_NAME, "type": "list", "builtin": True, "assay_variant": "",
+        "startle": dict(TONE, level_db=80.0),
+        "background_noise_db": 65.0,
+        "background_noise_off_s": float(HABITUATION_S),   # quiet stimuli must not be masked
+        "end_padding_s": 30.0,
+        "trials": [{"time_s": HABITUATION_S + HEARING_ITI_S * (i + 1), "freq_hz": 8000, "level_db": float(db)}
+                   for i, db in enumerate(HEARING_ORDER_DB)],
+    },
 }
+LEGACY_BUILTIN_NAMES = ["ASR Standard"]   # old name of Tone Volume Sensitivity
 
 DEFAULT_LIST = {
     "name": "Custom list",
     "type": "list",
     "assay_variant": "",
-    "startle": {"stimulus": "tone", "level_db": 105.0,
-                "rise_ms": 5.0, "plateau_ms": 0.0, "fall_ms": 5.0},
+    "startle": dict(TONE, level_db=105.0),
     "background_noise_db": 65.0,
     "end_padding_s": 30.0,
-    "trials": [{"time_s": 60 + 30 * i, "freq_hz": 8000} for i in range(10)],
+    "trials": [{"time_s": HABITUATION_S + 30 * i, "freq_hz": 8000} for i in range(10)],
 }
 
 DEFAULT_PPI = {
@@ -56,7 +87,7 @@ DEFAULT_PPI = {
     "type": "ppi",
     "assay_variant": "Prepulse Inhibition",
     "background_noise_db": 65.0,
-    "acclimation_s": 300.0,
+    "acclimation_s": float(HABITUATION_S),
     "end_padding_s": 30.0,
     "pulse": {"stimulus": "tone", "freq_hz": 8000, "level_db": 105.0,
               "rise_ms": 5.0, "plateau_ms": 0.0, "fall_ms": 5.0},
@@ -80,17 +111,29 @@ def _filename(name):
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("_") + ".json"
 
 
+def is_builtin(name):
+    return name in BUILTINS
+
+
 def ensure_builtin():
-    path = config.PROTOCOL_DIR / _filename(BUILTIN_ASR_NAME)
-    if not path.exists():
-        config.save_json(path, BUILTIN_ASR)
+    for name, proto in BUILTINS.items():
+        path = config.PROTOCOL_DIR / _filename(name)
+        if not path.exists():
+            config.save_json(path, proto)
+    for old in LEGACY_BUILTIN_NAMES:      # the built-in under its old name
+        path = config.PROTOCOL_DIR / _filename(old)
+        try:
+            if json.loads(path.read_text()).get("builtin"):
+                path.unlink()
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
     ppi = config.PROTOCOL_DIR / _filename(DEFAULT_PPI["name"])
     if not ppi.exists():
         config.save_json(ppi, DEFAULT_PPI)
 
 
-def restore_builtin():
-    config.save_json(config.PROTOCOL_DIR / _filename(BUILTIN_ASR_NAME), BUILTIN_ASR)
+def restore_builtin(name):
+    config.save_json(config.PROTOCOL_DIR / _filename(name), BUILTINS[name])
 
 
 def list_protocols():
@@ -100,7 +143,8 @@ def list_protocols():
             names.append(json.loads(p.read_text())["name"])
         except Exception:
             continue
-    names.sort(key=lambda n: (n != BUILTIN_ASR_NAME, n.lower()))
+    order = list(BUILTINS)
+    names.sort(key=lambda n: (order.index(n) if n in order else len(order), n.lower()))
     return names
 
 
@@ -112,22 +156,22 @@ def load(name):
             continue
         if data.get("name") == name:
             return data
-    if name == BUILTIN_ASR_NAME:
-        return copy.deepcopy(BUILTIN_ASR)
+    if name in BUILTINS:
+        return copy.deepcopy(BUILTINS[name])
     raise KeyError(name)
 
 
 def save(protocol):
-    if protocol.get("name") == BUILTIN_ASR_NAME:
-        raise ValueError("The built-in ASR protocol can't be overwritten. Use Save As.")
+    if is_builtin(protocol.get("name")):
+        raise ValueError(f"The built-in '{protocol['name']}' protocol can't be overwritten. Use Save As.")
     protocol = copy.deepcopy(protocol)
     protocol.pop("builtin", None)
     config.save_json(config.PROTOCOL_DIR / _filename(protocol["name"]), protocol)
 
 
 def delete(name):
-    if name == BUILTIN_ASR_NAME:
-        raise ValueError("The built-in ASR protocol can't be deleted.")
+    if is_builtin(name):
+        raise ValueError(f"The built-in '{name}' protocol can't be deleted.")
     (config.PROTOCOL_DIR / _filename(name)).unlink(missing_ok=True)
 
 
@@ -144,6 +188,9 @@ def build_schedule(protocol):
         raise ValueError(f"Unknown protocol type: {protocol['type']}")
     if not trials:
         raise ValueError("Protocol has no trials.")
+    off = protocol.get("background_noise_off_s")
+    if off is not None and float(off) < 0:
+        raise ValueError("Background noise off time must be 0 or more seconds.")
     last = max(_trial_end_s(t) for t in trials)
     return trials, last + float(protocol.get("end_padding_s", 30))
 

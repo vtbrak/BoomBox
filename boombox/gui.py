@@ -26,6 +26,7 @@ UI_FONT = "Segoe UI" if IS_WINDOWS else "Helvetica"
 MONO_FONT = "Consolas" if IS_WINDOWS else "Menlo"
 VOLUME_LABEL = sysutil.VOLUME_LABEL
 NAME_PART_RE = re.compile(r"[A-Za-z0-9-]+")   # arena / camera label rule from the metadata standard
+HIGH_TONE_HZ = 12000   # the lab speaker can blow out above 100 dB at these frequencies
 PREVIEW_W, PREVIEW_H = 640, 360
 PREVIEW_MIN_W = 240
 LEFT_MIN_W = 480
@@ -343,8 +344,8 @@ class App:
         ttk.Label(lockrow, textvariable=self.var_lock, foreground="#b00020").pack(side="left")
         self.btn_unlock = ttk.Button(lockrow, text="Unlock for editing", command=self.unlock_protocol)
         self.btn_unlock.pack(side="left", padx=6)
-        self.btn_restore = ttk.Button(lockrow, text="Restore original ASR protocol",
-                                      command=self.restore_asr)
+        self.btn_restore = ttk.Button(lockrow, text="Restore original",
+                                      command=self.restore_builtin)
         self.btn_restore.pack(side="left", padx=6)
 
         self.editor = ttk.Frame(f)
@@ -422,6 +423,9 @@ class App:
             mx = tk.StringVar()
             ttk.Label(self.cal_table, textvariable=ref).grid(row=i, column=5, padx=6, sticky="w")
             ttk.Label(self.cal_table, textvariable=mx).grid(row=i, column=6, padx=6, sticky="w")
+            if key != "noise" and key >= HIGH_TONE_HZ:
+                ttk.Label(self.cal_table, text="⚠ Keep at or below 100 dB: the speaker can blow out",
+                          foreground="#b00020").grid(row=i, column=7, padx=6, sticky="w")
             self.cal_rows[key] = {"test": test, "meas": meas, "btn": btn, "ref": ref, "max": mx}
             meas.trace_add("write", lambda *a: self.update_cal_labels())
             test.trace_add("write", lambda *a: self.update_cal_labels())
@@ -949,18 +953,24 @@ class App:
         self._field(g, 2, 2, "Record after last tone (s)", ("end_padding_s",), p.get("end_padding_s", 30))
         self._field(g, 3, 0, "Assay variant (blank = plain startle)", ("assay_variant",),
                     p.get("assay_variant", ""), kind="str", width=18, values=protocols.ASSAY_VARIANTS)
+        self._field(g, 3, 2, "Noise off at (s, blank = stays on)", ("background_noise_off_s",),
+                    p.get("background_noise_off_s"), kind="opt_float")
 
-        tf = ttk.LabelFrame(e, text="Tones: one per line  'time (s), frequency (kHz)'", padding=6)
+        tf = ttk.LabelFrame(e, text="Tones, one per line: time (s), kHz[, dB]", padding=6)
         tf.grid(row=0, column=1, rowspan=2, sticky="nw", padx=10)
+        ttk.Label(tf, text="dB is optional; without it the level above is used.",
+                  foreground="#555").pack(anchor="w")
         self.trials_text = tk.Text(tf, width=26, height=12, font=(MONO_FONT, 11))
         self.trials_text.pack()
-        self.trials_text.insert("end", "\n".join(f"{t['time_s']:g}, {t['freq_hz'] / 1000:g}" for t in p["trials"]))
+        self.trials_text.insert("end", "\n".join(
+            f"{t['time_s']:g}, {t['freq_hz'] / 1000:g}" + (f", {t['level_db']:g}" if "level_db" in t else "")
+            for t in p["trials"]))
 
         gen = ttk.LabelFrame(e, text="Generate tone list", padding=6)
         gen.grid(row=1, column=0, sticky="nw", pady=6)
         self.gen_vars = {}
         for i, (key, label, default) in enumerate([
-                ("first", "First tone (s)", "120"), ("n", "Number of tones", "15"),
+                ("first", "First tone (s)", str(protocols.HABITUATION_S)), ("n", "Number of tones", "15"),
                 ("isi_min", "Gap min (s)", "15"), ("isi_max", "Gap max (s)", "45"),
                 ("freqs", "Frequencies (kHz)", "4, 8, 12, 16, 20")]):
             ttk.Label(gen, text=label).grid(row=i // 2, column=(i % 2) * 2, sticky="w", padx=4)
@@ -980,7 +990,7 @@ class App:
         gen.grid(row=0, column=0, sticky="nw")
         self._field(gen, 0, 0, "Background noise (dB SPL)", ("background_noise_db",),
                     p.get("background_noise_db"), kind="opt_float")
-        self._field(gen, 1, 0, "Acclimation before 1st trial (s)", ("acclimation_s",), p["acclimation_s"])
+        self._field(gen, 1, 0, "Habituation before 1st trial (s)", ("acclimation_s",), p["acclimation_s"])
         self._field(gen, 2, 0, "Record after last trial (s)", ("end_padding_s",), p["end_padding_s"])
         self._field(gen, 3, 0, "Inter-trial interval min (s)", ("iti_min_s",), p["iti_min_s"])
         self._field(gen, 4, 0, "Inter-trial interval max (s)", ("iti_max_s",), p["iti_max_s"])
@@ -1074,9 +1084,15 @@ class App:
                     continue
                 parts = [x for x in line.replace("\t", ",").replace(" ", ",").split(",") if x]
                 try:
-                    trials.append({"time_s": float(parts[0]), "freq_hz": float(parts[1]) * 1000})
+                    trial = {"time_s": float(parts[0]), "freq_hz": float(parts[1]) * 1000}
+                    if len(parts) > 2:
+                        trial["level_db"] = float(parts[2])
+                    if len(parts) > 3:
+                        raise ValueError
                 except (ValueError, IndexError):
-                    raise ValueError(f"Tone list line {n} should be 'time_s, freq_kHz': {line}")
+                    raise ValueError(f"Tone list line {n} should be 'time (s), kHz' or "
+                                     f"'time (s), kHz, dB': {line}")
+                trials.append(trial)
             p["trials"] = trials
         return p
 
@@ -1118,17 +1134,19 @@ class App:
         self.schedule_text.insert("end", text)
 
     def unlock_protocol(self):
-        if messagebox.askyesno("Unlock", "Unlock the built-in ASR protocol for editing?\n\n"
+        if messagebox.askyesno("Unlock", "Unlock this built-in protocol for editing?\n\n"
                                "Your changes will be saved under a new name. The original "
                                "protocol stays available."):
             self.unlocked = True
             self.var_lock.set("Unlocked: use Save As to keep changes.")
             self._set_editor_state()
 
-    def restore_asr(self):
-        if messagebox.askyesno("Restore", "Restore the original ASR protocol (120-530 s, 15 tones)?"):
-            protocols.restore_builtin()
-            self.refresh_protocol_list(protocols.BUILTIN_ASR_NAME)
+    def restore_builtin(self):
+        name = self.var_protocol.get()
+        if protocols.is_builtin(name) and messagebox.askyesno(
+                "Restore", f"Restore the original '{name}' protocol?"):
+            protocols.restore_builtin(name)
+            self.refresh_protocol_list(name)
 
     def save_protocol(self):
         if self.loaded_protocol.get("builtin"):
@@ -1154,8 +1172,8 @@ class App:
         if not name:
             return
         name = name.strip()
-        if name == protocols.BUILTIN_ASR_NAME:
-            messagebox.showerror("Save As", "That name is reserved for the built-in protocol.")
+        if protocols.is_builtin(name):
+            messagebox.showerror("Save As", "That name is reserved for a built-in protocol.")
             return
         if name in protocols.list_protocols() and not messagebox.askyesno("Save As", f"Replace '{name}'?"):
             return
@@ -1166,12 +1184,12 @@ class App:
 
     def delete_protocol(self):
         name = self.var_protocol.get()
-        if name == protocols.BUILTIN_ASR_NAME:
-            messagebox.showinfo("Delete", "The built-in ASR protocol can't be deleted.")
+        if protocols.is_builtin(name):
+            messagebox.showinfo("Delete", "Built-in protocols can't be deleted.")
             return
         if messagebox.askyesno("Delete", f"Delete protocol '{name}'?"):
             protocols.delete(name)
-            self.refresh_protocol_list(protocols.BUILTIN_ASR_NAME)
+            self.refresh_protocol_list(protocols.TVS_NAME)
 
     def _new_protocol(self, template):
         name = simpledialog.askstring("New protocol", "Name:", parent=self.root)
@@ -1179,7 +1197,7 @@ class App:
             return
         p = copy.deepcopy(template)
         p["name"] = name.strip()
-        if p["name"] == protocols.BUILTIN_ASR_NAME:
+        if protocols.is_builtin(p["name"]):
             messagebox.showerror("New protocol", "That name is reserved.")
             return
         protocols.save(p)
@@ -1266,7 +1284,7 @@ class App:
     def play_cal_burst(self, freq):
         if not self.engine or self.recording():
             return
-        p = self.selected_protocol() or protocols.BUILTIN_ASR
+        p = self.selected_protocol() or protocols.BUILTINS[protocols.TVS_NAME]
         st = p.get("startle") or p.get("pulse")
         try:
             dbfs = float(self.cal_rows[freq]["test"].get())
