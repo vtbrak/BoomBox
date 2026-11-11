@@ -14,8 +14,8 @@ def output_volume():
     if IS_WINDOWS:
         return _windows_volume()
     try:
-        out = subprocess.run(["osascript", "-e", "get volume settings"],
-                             capture_output=True, text=True, timeout=5).stdout
+        out = subprocess.run(["osascript", "-e", "get volume settings"], capture_output=True,
+                             encoding="utf-8", errors="replace", timeout=5).stdout
         parts = dict(p.strip().split(":", 1) for p in out.strip().split(","))
         vol = parts.get("output volume", "missing value")
         return (None if vol == "missing value" else int(vol)), parts.get("output muted") == "true"

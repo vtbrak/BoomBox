@@ -36,9 +36,6 @@ CONTROLS = {
     "power_line":           ("pu", 0x05, 1, False, "menu",  "Light flicker filter"),
 }
 POWER_LINE = {0: "Off", 1: "50 Hz", 2: "60 Hz (US)"}
-# Controls that only take effect when their "auto" partner is off.
-DEPENDS_ON = {"exposure_time": "auto_exposure", "focus": "auto_focus",
-              "white_balance": "auto_white_balance"}
 APPLY_ORDER = ["auto_exposure", "exposure_priority", "auto_focus", "auto_white_balance",
                "power_line", "exposure_time", "focus", "white_balance", "gain",
                "brightness", "contrast", "gamma", "sharpness", "backlight"]
@@ -60,7 +57,7 @@ class UVCCamera:
             raise RuntimeError("USB camera not found for UVC controls")
         self._parse_descriptors()
         self.info = {}
-        for name, spec in CONTROLS.items():
+        for name in CONTROLS:
             try:
                 self.info[name] = self._query(name)
             except Exception:
@@ -145,9 +142,6 @@ class UVCCamera:
             res = self.info[name].get("res", 0x0A)
             value = (8 if res & 8 else 2) if value else 1
         self._req(SET_CUR, name, data=int(value).to_bytes(size, "little", signed=signed))
-
-    def is_auto_exposure(self):
-        return self.get("auto_exposure") != 1
 
     def read_all(self):
         """Current values in the same form set() accepts."""

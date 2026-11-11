@@ -48,13 +48,6 @@ def list_input_devices():
     return [_label(d) for d in _devices("max_input_channels")]
 
 
-def default_output_name():
-    try:
-        return sd.query_devices(kind="output")["name"]
-    except Exception:
-        return ""
-
-
 def _device_index(name, kind):
     key = "max_output_channels" if kind == "output" else "max_input_channels"
     if not name:
@@ -81,10 +74,6 @@ def _extra_settings(dev_index):
         return None
 
 
-def _pa_to_perf(stream_time_now):
-    return time.perf_counter() - stream_time_now
-
-
 @dataclass
 class StimEvent:
     start_perf: float
@@ -93,7 +82,6 @@ class StimEvent:
     pos: int = 0
     actual_perf: float = None
     late_s: float = 0.0
-    done: bool = False
     cancelled: bool = False
 
 
@@ -119,7 +107,6 @@ class AudioEngine:
         self._cal_phase = 0.0
         self.clip_count = 0
         self.underflow_count = 0
-        self.last_block_perf = None
 
     # -- stream control -------------------------------------------------
     def start(self):
@@ -188,7 +175,6 @@ class AudioEngine:
         cur = time_info.currentTime or (self._stream.time if self._stream else 0.0)
         dac = time_info.outputBufferDacTime
         block_perf = (dac + (now - cur)) if (dac and cur) else now
-        self.last_block_perf = block_perf
         buf = np.zeros(frames, np.float32)
 
         if self.noise_target > 0 or self._noise_cur > 0:
@@ -207,7 +193,6 @@ class AudioEngine:
         still = []
         for ev in self._active:
             if ev.cancelled:
-                ev.done = True
                 self.finished.append(ev)
                 continue
             offset = 0
@@ -224,7 +209,6 @@ class AudioEngine:
             buf[offset:offset + n] += ev.wave[ev.pos:ev.pos + n]
             ev.pos += n
             if ev.pos >= ev.wave.size:
-                ev.done = True
                 self.finished.append(ev)
             else:
                 still.append(ev)

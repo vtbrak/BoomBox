@@ -60,7 +60,8 @@ def _count_video_frames(path):
     try:
         out = subprocess.run([str(ffprobe), "-v", "error", "-select_streams", "v:0", "-count_packets",
                               "-show_entries", "stream=nb_read_packets", "-of", "csv=p=0", str(path)],
-                             capture_output=True, text=True, timeout=120, **_NO_WINDOW).stdout
+                             capture_output=True, encoding="utf-8", errors="replace", timeout=120,
+                             **_NO_WINDOW).stdout
         return int(out.strip().split(",")[0])
     except Exception:
         return None
@@ -121,11 +122,33 @@ class Session:
                 self.log(f"Background noise on: {bg:g} dB SPL ({dbfs:.1f} dBFS, {status})")
             self.engine.set_noise_dbfs(dbfs)
 
+        try:
+            self._start_recording()
+        except BaseException:
+            # Don't leave the microphone or the encoder running behind a failed start.
+            self.camera.recorder = None
+            if self.recorder is not None:
+                self.recorder.close()
+            if self.mic is not None:
+                self.mic.stop()
+            raise
+        self.t0 = self.recorder.t0
+        # Date and start time come from this computer's clock at video frame 0.
+        self.start_dt = dt.datetime.now() - dt.timedelta(seconds=time.perf_counter() - self.t0)
+        self.base = f"{self.start_dt:%Y-%m-%d_%H-%M-%S}_{self.arena}"
+        self.state = "recording"
+        cam = self.camera
+        self.log(f"Recording started (frame 0). {cam.width}x{cam.height} @ {cam.fps} fps, "
+                 f"{len(self.trials)} trials, {self.total_s:.1f} s")
+        for i, role, wave, onset_s, dbfs, status in rendered:
+            ev = self.engine.schedule(wave, self.t0 + onset_s, {"trial": i, "role": role})
+            self.stim_events.append((i, role, ev, dbfs, status))
+
+    def _start_recording(self):
         if self.settings.get("mic_device"):
             self.mic = MicRecorder(self.settings["mic_device"], self.folder / "_mic_raw.wav")
             self.mic.start()
             self.log(f"Microphone recording: {self.settings['mic_device']} at {self.mic.fs} Hz")
-
         cam = self.camera
         self.recorder = VideoRecorder(self.folder / "_video.mp4", cam.width, cam.height, cam.fps,
                                       crf=self.settings["video_crf"],
@@ -134,22 +157,8 @@ class Session:
         deadline = time.perf_counter() + 5
         while self.recorder.t0 is None:
             if time.perf_counter() > deadline or not cam.alive:
-                cam.recorder = None
-                self.recorder.close()
-                if self.mic:
-                    self.mic.stop()
                 raise RuntimeError("No frames from the camera; recording not started.")
             time.sleep(0.005)
-        self.t0 = self.recorder.t0
-        # Date and start time come from this computer's clock at video frame 0.
-        self.start_dt = dt.datetime.now() - dt.timedelta(seconds=time.perf_counter() - self.t0)
-        self.base = f"{self.start_dt:%Y-%m-%d_%H-%M-%S}_{self.arena}"
-        self.state = "recording"
-        self.log(f"Recording started (frame 0). {cam.width}x{cam.height} @ {cam.fps} fps, "
-                 f"{len(self.trials)} trials, {self.total_s:.1f} s")
-        for i, role, wave, onset_s, dbfs, status in rendered:
-            ev = self.engine.schedule(wave, self.t0 + onset_s, {"trial": i, "role": role})
-            self.stim_events.append((i, role, ev, dbfs, status))
 
     def elapsed(self):
         return 0.0 if self.t0 is None else time.perf_counter() - self.t0
@@ -172,6 +181,10 @@ class Session:
             self.log(f"CAMERA ERROR: {self.camera.error}")
             self.stopped_early = True
             return True
+        if self.recorder.failed:
+            self.log("VIDEO ERROR: the video encoder stopped (disk full or crashed). Stopping the session.")
+            self.stopped_early = True
+            return True
         return self.elapsed() >= self.total_s
 
     def next_trial(self):
@@ -188,7 +201,6 @@ class Session:
     def stop(self, early=False):
         """Stop capture immediately (call from the GUI thread); then call finalize()."""
         self.stopped_early = self.stopped_early or early
-        self.end_perf = time.perf_counter()
         self.camera.recorder = None
         for _, _, ev, _, _ in self.stim_events:
             if ev.pos == 0:
@@ -216,8 +228,7 @@ class Session:
     def _finalize(self):
         rec = self.recorder
         rc, err = rec.close()
-        if rc != 0:
-            raise RuntimeError(f"Video encoder failed: {err}")
+        video_ok = rc == 0 and not rec.failed
         self.log(f"Video: {rec.n_frames} frames, {rec.n_duplicated} repeated for dropped camera "
                  f"frames in {len(rec.gaps)} gaps, {rec.skipped} extra camera frames discarded")
         for g in rec.gaps:
@@ -234,31 +245,25 @@ class Session:
         if self.mic and self.mic.n_samples > 0:
             mic_fit = self.mic.clock_fit()
             self._write_aligned_audio(audio_final, mic_fit, rec.n_frames / rec.fps)
-            cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y",
-                   "-i", str(video_tmp), "-i", str(audio_final), "-map", "0:v", "-map", "1:a",
-                   "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-shortest",
-                   "-movflags", "+faststart", str(video_final)]
-            res = subprocess.run(cmd, capture_output=True, text=True, **_NO_WINDOW)
-            if res.returncode == 0:
-                video_tmp.unlink()
-            else:
-                self.log(f"Could not add audio to the MP4 ({res.stderr.strip()}); saved video without audio.")
-                os.replace(video_tmp, video_final)
+        self.verified_frames = None
+        if video_ok:
+            self._save_video(video_tmp, video_final, audio_final if mic_fit else None)
         else:
-            os.replace(video_tmp, video_final)
-        self.verified_frames = _count_video_frames(video_final)
-        if self.verified_frames is not None and self.verified_frames != rec.n_frames:
-            self.log(f"WARNING: the video file has {self.verified_frames} frames but {rec.n_frames} were written.")
+            self.log(f"VIDEO NOT SAVED: the encoder failed ({err or 'it stopped unexpectedly'}). "
+                     "The stimulus timing is saved; whatever video was written is in _video.mp4.")
 
         rows = self._trial_rows(mic_fit)
         self._write_trials_csv(rows)
         self._write_frames_csv()
         if self.mic and (self.folder / "_mic_raw.wav").exists():
             (self.folder / "_mic_raw.wav").unlink()
-        info = self._info(rows)
-        self._write_info_json(info)
-        self._write_info_csv(info)
+        if video_ok:      # Track Tamer's file only describes a video that exists
+            info = self._info(rows)
+            self._write_info_json(info)
+            self._write_info_csv(info)
         self._write_events_log()
+        if not video_ok:
+            raise RuntimeError(f"Video encoder failed: {err or 'it stopped unexpectedly'}")
 
         n_played = sum(1 for _, _, ev, _, _ in self.stim_events if ev.actual_perf)
         detected = [r for r in rows if r.get("pulse_mic_ms") not in (None, "")]
@@ -266,32 +271,63 @@ class Session:
                             f"{rec.n_duplicated} dropped frames"
                             + (f", {len(detected)} pulses detected by mic" if self.mic else ""))
 
+    def _save_video(self, video_tmp, video_final, audio_path):
+        """Give the video its final name, adding the mic as its audio track when there is one."""
+        if audio_path is not None:
+            cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y",
+                   "-i", str(video_tmp), "-i", str(audio_path), "-map", "0:v", "-map", "1:a",
+                   "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-shortest",
+                   "-movflags", "+faststart", str(video_final)]
+            res = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace",
+                                 **_NO_WINDOW)
+            if res.returncode == 0:
+                video_tmp.unlink()
+            else:
+                self.log(f"Could not add audio to the MP4 ({res.stderr.strip()}); saved video without audio.")
+                os.replace(video_tmp, video_final)
+        else:
+            os.replace(video_tmp, video_final)
+        rec = self.recorder
+        self.verified_frames = _count_video_frames(video_final)
+        if self.verified_frames is not None and self.verified_frames != rec.n_frames:
+            self.log(f"WARNING: the video file has {self.verified_frames} frames but {rec.n_frames} were written.")
+
+    MIC_CHUNK_S = 2   # seconds of audio handled at a time, so long recordings aren't loaded whole
+
     def _write_aligned_audio(self, path, fit, duration_s):
         """Resample the raw mic recording onto the video timeline (sample 0 = frame 0)."""
         a, b = fit
-        raw, fs = sf.read(self.folder / "_mic_raw.wav", dtype="float32")
-        n_out = int(round(duration_s * fs))
-        src_idx = np.arange(raw.size, dtype=np.float64)
-        with sf.SoundFile(path, "w", fs, 1, "PCM_24") as f:
-            chunk = fs * 10
+        with sf.SoundFile(self.folder / "_mic_raw.wav") as src, \
+                sf.SoundFile(path, "w", src.samplerate, 1, "PCM_24") as dst:
+            fs, n_src = src.samplerate, src.frames
+            n_out = int(round(duration_s * fs))
+            chunk = fs * self.MIC_CHUNK_S
             for start in range(0, n_out, chunk):
                 m = np.arange(start, min(start + chunk, n_out), dtype=np.float64)
                 pos = (self.t0 + m / fs - a) / b
-                f.write(np.interp(pos, src_idx, raw, left=0.0, right=0.0).astype(np.float32))
-        self.mic_raw = raw
-        self.mic_fs = fs
+                lo = min(max(0, int(np.floor(pos[0]))), n_src)
+                hi = min(n_src, max(lo, int(np.ceil(pos[-1])) + 2))
+                out = np.zeros(m.size, np.float32)
+                if hi > lo:
+                    src.seek(lo)
+                    seg = src.read(hi - lo, dtype="float32")
+                    out = np.interp(pos, np.arange(lo, lo + seg.size), seg,
+                                    left=0.0, right=0.0).astype(np.float32)
+                dst.write(out)
 
     def _detect_onset(self, stim, actual_perf, fit):
         """Measured onset (perf time) of a tone from the raw mic signal, or None."""
         if stim["stimulus"] != "tone" or fit is None or actual_perf is None:
             return None
         a, b = fit
-        fs = self.mic_fs
-        center = int(round((actual_perf - a) / b))
-        lo, hi = center - int(0.05 * fs), center + int(0.15 * fs)
-        if lo < 0 or hi > self.mic_raw.size:
-            return None
-        x = self.mic_raw[lo:hi].astype(np.float64)
+        with sf.SoundFile(self.folder / "_mic_raw.wav") as src:
+            fs = src.samplerate
+            center = int(round((actual_perf - a) / b))
+            lo, hi = center - int(0.05 * fs), center + int(0.15 * fs)
+            if lo < 0 or hi > src.frames:
+                return None
+            src.seek(lo)
+            x = src.read(hi - lo, dtype="float64")
         spec = np.fft.rfft(x)
         freqs = np.fft.rfftfreq(x.size, 1 / fs)
         f0 = stim["freq_hz"]
@@ -358,14 +394,14 @@ class Session:
         return rows
 
     def _write_trials_csv(self, rows):
-        with open(self.folder / f"{self.base}_trials.csv", "w", newline="") as f:
+        with open(self.folder / f"{self.base}_trials.csv", "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
             w.writeheader()
             w.writerows(rows)
 
     def _write_frames_csv(self):
         rec = self.recorder
-        with open(self.folder / self.frames_name, "w", newline="") as f:
+        with open(self.folder / self.frames_name, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             w.writerow(["frame", "video_time_s", "repeated"])
             for i, (t, d) in enumerate(zip(rec.frame_times, rec.duplicated)):
@@ -504,7 +540,7 @@ class Session:
         _write_atomic(self.folder / f"{self.base}_info.csv", buf.getvalue())
 
     def _write_events_log(self):
-        with open(self.folder / f"{self.base}_events.log", "w") as f:
+        with open(self.folder / f"{self.base}_events.log", "w", encoding="utf-8") as f:
             f.write(f"Boom Box {__version__}  session {self.base}\n")
             f.write(f"Experimenter: {self.meta['experimenter']}   Animal: {self.meta['animal_id']}\n\n")
             f.write("\n".join(self.events_log) + "\n")

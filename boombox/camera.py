@@ -10,6 +10,7 @@ clock: if the camera drops frames the previous frame is repeated (and logged),
 so frame N in the MP4 is at N / fps seconds and lines up with the audio track.
 """
 
+import bisect
 import collections
 import queue
 import re
@@ -48,8 +49,18 @@ def ffmpeg_path():
 
 
 def _ffmpeg_stderr(args):
+    # ffmpeg prints UTF-8; decoding with the Windows default code page would garble
+    # camera names with accents, so they would no longer match.
     return subprocess.run([ffmpeg_path(), "-hide_banner", *args], capture_output=True,
-                          text=True, errors="replace", timeout=20, **_NO_WINDOW).stderr
+                          encoding="utf-8", errors="replace", timeout=20, **_NO_WINDOW).stderr
+
+
+def _measured_fps(times):
+    """Frames per second over the recent frame times (0 until there are enough)."""
+    if len(times) < 10:
+        return 0.0
+    span = times[-1] - times[0]
+    return (len(times) - 1) / span if span > 0 else 0.0
 
 
 def _dshow_devices():
@@ -101,8 +112,8 @@ def camera_index(name):
     return names.index(name)
 
 
-def list_modes(name):
-    """[(width, height, max fps)] supported by the camera."""
+def list_modes(name, index=None):
+    """[(width, height, max fps)] supported by the camera (pass its index if already known)."""
     if name == TEST_PATTERN:
         return [(int(r.split("x")[0]), int(r.split("x")[1]), f)
                 for r in RESOLUTIONS.values() for f in FPS_CHOICES]
@@ -112,7 +123,7 @@ def list_modes(name):
         for m in DSHOW_MODE_RE.finditer(out):
             modes.add((int(m.group(1)), int(m.group(2)), float(m.group(3))))
         return sorted(modes)
-    idx = camera_index(name)
+    idx = camera_index(name) if index is None else index
     out = _ffmpeg_stderr(["-f", "avfoundation", "-framerate", "1000", "-video_size", "1x1",
                           "-i", f"{idx}:none"])
     for m in MODE_RE.finditer(out):
@@ -142,8 +153,8 @@ def usb_cameras():
             pass
         return cams
     try:
-        out = subprocess.run(["system_profiler", "SPCameraDataType"],
-                             capture_output=True, text=True, timeout=20).stdout
+        out = subprocess.run(["system_profiler", "SPCameraDataType"], capture_output=True,
+                             encoding="utf-8", errors="replace", timeout=20).stdout
     except Exception:
         return {}
     name = None
@@ -186,7 +197,6 @@ class Camera:
         self.latency_s = float(latency_ms) / 1000.0
         self.frame_bytes = self.width * self.height
         self.latest = None
-        self.latest_time = None
         self.frame_count = 0
         self.recorder = None
         self.error = None
@@ -201,13 +211,13 @@ class Camera:
             src = ["-re", "-f", "lavfi", "-i",
                    f"testsrc2=size={self.width}x{self.height}:rate={self.fps}"]
         else:
-            rate = pick_framerate(list_modes(self.name), self.width, self.height, self.fps)
+            idx = camera_index(self.name)
+            rate = pick_framerate(list_modes(self.name, idx), self.width, self.height, self.fps)
             if rate is None:
                 raise RuntimeError(f"{self.name} does not support {self.width}x{self.height} "
                                    f"at {self.fps} fps. Use 'Show camera modes' to see options.")
             src = ["-f", "avfoundation", "-pixel_format", "nv12", "-framerate", rate,
-                   "-video_size", f"{self.width}x{self.height}",
-                   "-i", f"{camera_index(self.name)}:none"]
+                   "-video_size", f"{self.width}x{self.height}", "-i", f"{idx}:none"]
         return [ff, "-hide_banner", "-loglevel", "warning", "-fflags", "nobuffer",
                 "-flags", "low_delay", *src, "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"]
 
@@ -232,10 +242,7 @@ class Camera:
         return self._proc is not None and self._proc.poll() is None
 
     def measured_fps(self):
-        if len(self._times) < 10:
-            return 0.0
-        span = self._times[-1] - self._times[0]
-        return (len(self._times) - 1) / span if span > 0 else 0.0
+        return _measured_fps(self._times)
 
     def _read_stderr(self):
         for raw in iter(self._proc.stderr.readline, b""):
@@ -260,7 +267,7 @@ class Camera:
                 break
             t = time.perf_counter() - self.latency_s
             frame = np.frombuffer(buf, np.uint8).reshape(self.height, self.width)
-            self.latest, self.latest_time = frame, t
+            self.latest = frame
             self.frame_count += 1
             self._times.append(t)
             rec = self.recorder
@@ -298,7 +305,6 @@ class DShowCamera:
         self.width, self.height, self.fps = int(width), int(height), int(fps)
         self.latency_s = float(latency_ms) / 1000.0
         self.latest = None
-        self.latest_time = None
         self.frame_count = 0
         self.recorder = None
         self.error = None
@@ -323,10 +329,7 @@ class DShowCamera:
         return self._thread is not None and self._thread.is_alive()
 
     def measured_fps(self):
-        if len(self._times) < 10:
-            return 0.0
-        span = self._times[-1] - self._times[0]
-        return (len(self._times) - 1) / span if span > 0 else 0.0
+        return _measured_fps(self._times)
 
     def stderr_text(self):
         return "\n".join(self._messages)
@@ -401,7 +404,7 @@ class DShowCamera:
                 gray = frame if frame.ndim == 2 else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 if gray.shape != (self.height, self.width):
                     gray = cv2.resize(gray, (self.width, self.height))
-                self.latest, self.latest_time = gray, t
+                self.latest = gray
                 self.frame_count += 1
                 self._times.append(t)
                 rec = self.recorder
@@ -424,6 +427,9 @@ class VideoRecorder:
         self.gaps = []            # {"frame", "time_s", "missing"}
         self.skipped = 0          # camera frames discarded because the camera ran fast
         self.max_queue = 0
+        self.failed = False       # the encoder stopped (crashed, disk full, ...)
+        self._closed = False
+        self._lock = threading.Lock()   # push() runs on the camera thread, close() elsewhere
         self._next_slot = 0
         self._last = None
         self._q = queue.Queue()
@@ -444,6 +450,15 @@ class VideoRecorder:
         self._next_slot += 1
 
     def push(self, frame, t):
+        with self._lock:
+            if self._closed or self.failed:
+                return
+            if self._proc.poll() is not None:     # encoder gone: stop queueing frames
+                self.failed = True
+                return
+            self._push(frame, t)
+
+    def _push(self, frame, t):
         if self.t0 is None:
             self.t0 = t
             self._last = frame
@@ -465,21 +480,26 @@ class VideoRecorder:
         self._write(frame, t, 0)
 
     def _writer(self):
+        # Keep taking frames off the queue even after a failure, so they don't pile up in memory.
         while True:
             frame = self._q.get()
             if frame is None:
                 break
+            if self.failed:
+                continue
             try:
                 self._proc.stdin.write(frame.tobytes())
-            except BrokenPipeError:
-                break
+            except OSError:          # BrokenPipeError and friends: the encoder has gone
+                self.failed = True
 
     def close(self):
+        with self._lock:
+            self._closed = True
         self._q.put(None)
         self._thread.join()
         try:
             self._proc.stdin.close()
-        except BrokenPipeError:
+        except OSError:
             pass
         self._proc.wait()
         err = self._proc.stderr.read().decode(errors="replace").strip()
@@ -495,6 +515,4 @@ class VideoRecorder:
 
     def frame_at(self, t):
         """Index of the frame being exposed at perf time t (-1 if before recording)."""
-        if not self.frame_times:
-            return -1
-        return int(np.searchsorted(np.asarray(self.frame_times), t, side="right") - 1)
+        return bisect.bisect_right(self.frame_times, t) - 1

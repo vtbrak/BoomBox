@@ -34,6 +34,29 @@ SYSTEM_DEFAULT = "System default"
 NO_MIC = "None (don't record audio)"
 
 
+def volume_problems(cal, vol, muted):
+    """(errors, warnings) about the computer's sound volume before a session."""
+    errors, warnings = [], []
+    if muted:          # silent stimuli ruin a session whether or not the speaker is calibrated
+        errors.append("The computer's sound is MUTED.")
+    elif calibration.is_calibrated(cal) and cal.get("mac_volume") is not None and vol != cal["mac_volume"]:
+        warnings.append(f"{VOLUME_LABEL} is {vol} but was {cal['mac_volume']} at calibration.")
+    return errors, warnings
+
+
+def session_camera_values(controls, locked, saved):
+    """Re-apply locked camera settings and read the values in use: (values, problem or None).
+
+    A camera that doesn't answer must not stop a session from starting.
+    """
+    try:
+        if locked and saved:
+            controls.apply_all(saved)
+        return controls.read_all(), None
+    except Exception as e:
+        return {}, str(e)
+
+
 def _wheel_units(event):
     if IS_WINDOWS:
         return -int(event.delta / 120) or (-1 if event.delta > 0 else 1)
@@ -483,9 +506,8 @@ class App:
                   wraplength=760, foreground="#555").pack(anchor="w")
         self.controls_frame = ttk.Frame(f)
         self.controls_frame.pack(fill="x", pady=6)
-        self.control_vars = {}
         self.control_widgets = []
-        self.refresh_cameras(initial=True)
+        self.refresh_cameras()
 
     # ---------------------------------------------------------------------
     def _build_settings_tab(self):
@@ -644,7 +666,7 @@ class App:
 
     # =====================================================================
     # Camera
-    def refresh_cameras(self, initial=False):
+    def refresh_cameras(self):
         try:
             names = camera.list_cameras()
         except Exception as e:
@@ -725,11 +747,14 @@ class App:
         t.pack(fill="both", expand=True)
         t.insert("end", "\n".join(lines) or "No modes reported")
 
-    def connect_uvc(self):
-        self.uvc = None
+    def _clear_controls(self):
         for w in self.controls_frame.winfo_children():
             w.destroy()
-        self.control_vars, self.control_widgets = {}, []
+        self.control_widgets = []
+
+    def connect_uvc(self):
+        self.uvc = None
+        self._clear_controls()
         if getattr(self.camera, "has_settings_dialog", False):
             self.build_dialog_controls()
             return
@@ -778,7 +803,6 @@ class App:
                 w.set(v.get())
                 w.pack(side="left")
                 ttk.Label(fr, textvariable=v, width=6).pack(side="left", padx=4)
-            self.control_vars[name] = v
             self.control_widgets.append(w)
             r += 1
         self.update_lock_state()
@@ -801,7 +825,12 @@ class App:
     def on_cam_lock(self):
         locked = self.var_cam_lock.get()
         if locked and self.uvc:
-            self.settings["camera_controls"] = self.uvc.read_all()
+            try:
+                self.settings["camera_controls"] = self.uvc.read_all()
+            except Exception as e:
+                self.var_cam_lock.set(False)
+                messagebox.showerror("Camera", f"Couldn't read the camera's settings, so they weren't locked:\n{e}")
+                return
             self.log(f"Camera settings locked: {self.settings['camera_controls']}")
         self.settings["camera_controls_locked"] = locked
         self.save_settings()
@@ -879,9 +908,7 @@ class App:
             messagebox.showinfo("Camera", "Unlock camera settings first.")
             return
         self.uvc.reset_defaults()
-        for w in self.controls_frame.winfo_children():
-            w.destroy()
-        self.control_vars, self.control_widgets = {}, []
+        self._clear_controls()
         self.build_controls()
 
     # =====================================================================
@@ -1184,7 +1211,11 @@ class App:
         if name in protocols.list_protocols() and not messagebox.askyesno("Save As", f"Replace '{name}'?"):
             return
         p["name"] = name
-        protocols.save(p)
+        try:
+            protocols.save(p)
+        except ValueError as e:
+            messagebox.showerror("Save As", str(e))
+            return
         self.log(f"Protocol saved: {name}")
         self.refresh_protocol_list(name)
 
@@ -1203,10 +1234,14 @@ class App:
             return
         p = copy.deepcopy(template)
         p["name"] = name.strip()
-        if protocols.is_builtin(p["name"]):
-            messagebox.showerror("New protocol", "That name is reserved.")
+        if p["name"] in protocols.list_protocols():
+            messagebox.showerror("New protocol", f"A protocol called '{p['name']}' already exists.")
             return
-        protocols.save(p)
+        try:
+            protocols.save(p)
+        except ValueError as e:
+            messagebox.showerror("New protocol", str(e))
+            return
         self.refresh_protocol_list(p["name"])
 
     def new_list_protocol(self):
@@ -1428,14 +1463,12 @@ class App:
             age = calibration.age_days(self.cal)
             if age is not None and age > float(self.settings["calibration_max_age_days"]):
                 warnings.append(f"Calibration is {age:.0f} days old.")
-            vol, muted = sysutil.output_volume()
-            if muted:
-                errors.append("The computer's sound is MUTED.")
-            elif self.cal.get("mac_volume") is not None and vol != self.cal["mac_volume"]:
-                warnings.append(f"{VOLUME_LABEL} is {vol} but was {self.cal['mac_volume']} at calibration.")
             if self.engine and self.cal.get("output_device") not in (None, self.engine.actual_device):
                 warnings.append(f"Sound output is '{self.engine.actual_device}' but calibration used "
                                 f"'{self.cal['output_device']}'.")
+        vol_errors, vol_warnings = volume_problems(self.cal, *sysutil.output_volume())
+        errors += vol_errors
+        warnings += vol_warnings
         if cam and cam.frame_count:
             fps = cam.measured_fps()
             if fps and abs(fps - cam.fps) / cam.fps > 0.05:
@@ -1489,12 +1522,10 @@ class App:
                 **{k: v.get().strip() for k, v in self.animal_vars.items()}}
         uvc_values = {}
         if self.uvc:
-            if self.var_cam_lock.get() and self.settings.get("camera_controls"):
-                self.uvc.apply_all(self.settings["camera_controls"])
-            try:
-                uvc_values = self.uvc.read_all()
-            except Exception:
-                pass
+            uvc_values, problem = session_camera_values(
+                self.uvc, self.var_cam_lock.get(), self.settings.get("camera_controls"))
+            if problem:
+                self.log(f"Camera settings could not be applied or read: {problem}")
         self.session = Session(engine=self.engine, camera=self.camera, cal=copy.deepcopy(self.cal),
                                protocol=p, trials=trials, total_s=total, meta=meta,
                                settings=dict(self.settings), uvc_values=uvc_values, log=self.log)

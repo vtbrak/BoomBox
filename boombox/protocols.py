@@ -123,7 +123,7 @@ def ensure_builtin():
     for old in LEGACY_BUILTIN_NAMES:      # the built-in under its old name
         path = config.PROTOCOL_DIR / _filename(old)
         try:
-            if json.loads(path.read_text()).get("builtin"):
+            if json.loads(path.read_text(encoding="utf-8")).get("builtin"):
                 path.unlink()
         except (FileNotFoundError, json.JSONDecodeError):
             pass
@@ -140,7 +140,7 @@ def list_protocols():
     names = []
     for p in sorted(config.PROTOCOL_DIR.glob("*.json")):
         try:
-            names.append(json.loads(p.read_text())["name"])
+            names.append(json.loads(p.read_text(encoding="utf-8"))["name"])
         except Exception:
             continue
     order = list(BUILTINS)
@@ -151,7 +151,7 @@ def list_protocols():
 def load(name):
     for p in config.PROTOCOL_DIR.glob("*.json"):
         try:
-            data = json.loads(p.read_text())
+            data = json.loads(p.read_text(encoding="utf-8"))
         except Exception:
             continue
         if data.get("name") == name:
@@ -162,11 +162,19 @@ def load(name):
 
 
 def save(protocol):
-    if is_builtin(protocol.get("name")):
-        raise ValueError(f"The built-in '{protocol['name']}' protocol can't be overwritten. Use Save As.")
+    name = protocol.get("name")
+    if is_builtin(name):
+        raise ValueError(f"The built-in '{name}' protocol can't be overwritten. Use Save As.")
+    path = config.PROTOCOL_DIR / _filename(name)
+    # Different names can share a file name ("Hearing Test" / "Hearing_Test"); never replace
+    # another protocol's file that way.
+    existing = config.load_json(path, {}).get("name") if path.exists() else None
+    if existing is not None and existing != name:
+        raise ValueError(f"'{name}' can't be saved: its file name is already used by the protocol "
+                         f"'{existing}'. Choose a different name.")
     protocol = copy.deepcopy(protocol)
     protocol.pop("builtin", None)
-    config.save_json(config.PROTOCOL_DIR / _filename(protocol["name"]), protocol)
+    config.save_json(path, protocol)
 
 
 def delete(name):

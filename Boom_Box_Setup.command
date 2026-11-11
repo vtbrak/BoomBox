@@ -10,5 +10,10 @@ else
     echo "Creating the 'boombox' environment (a few minutes)..."
     conda env create -f environment.yml
 fi
+status=$?
 echo
-read -r -p "Done. Press Return to close."
+if [ $status -eq 0 ]; then
+    read -r -p "Done. Press Return to close."
+else
+    read -r -p "Setup FAILED (see the messages above). Press Return to close."
+fi
