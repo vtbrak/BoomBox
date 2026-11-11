@@ -6,6 +6,16 @@ grayscale video from a USB camera, raised-cosine tone bursts through the headpho
 (to an amplifier and speaker), constant background white noise, and a microphone track used to
 check sync. Every stimulus is logged with the video frame it occurred in.
 
+## What's in the folder
+
+| File or folder | What it's for |
+|---|---|
+| `Boom_Box.command` / `Boom_Box.bat` | Start Boom Box (Mac / Windows) |
+| `Install_BoomBox.command` / `Install_BoomBox.bat` | Install Boom Box, or update it after downloading a new version (Mac / Windows) |
+| `README.md`, `INSTALL.md` | This file and the install guide |
+| `Data` | Your recordings (appears after the first session) |
+| `app` | The program itself: code, protocols, your settings and calibration (`app/config`), tests, and the Track Tamer data guide (`app/docs`). You don't need to open it |
+
 ## Installing
 
 Everything about installing is in **[INSTALL.md](INSTALL.md)**:
@@ -15,7 +25,7 @@ Everything about installing is in **[INSTALL.md](INSTALL.md)**:
 - [No password method](INSTALL.md#no-password-method): install and start from Terminal (`bash` + drag the file) when macOS asks for an administrator password
 - [Installing a newer version](INSTALL.md#installing-a-newer-version-later): update without losing calibration, settings or data
 - [Troubleshooting](INSTALL.md#troubleshooting)
-- [Installing on Windows](INSTALL.md#installing-on-windows): Anaconda, setup with `Boom_Box_Setup.bat`, and first-time settings on a PC
+- [Installing on Windows](INSTALL.md#installing-on-windows): Anaconda, setup with `Install_BoomBox.bat`, and first-time settings on a PC
 
 ## Starting the program each time
 
@@ -23,7 +33,7 @@ Everything about installing is in **[INSTALL.md](INSTALL.md)**:
 You don't need to open Anaconda or rerun the setup. The rest of this section is for Macs.
 
 After the first-time setup, use either method below. That includes after closing the program, logging
-out, or restarting the Mac. **You never need to open Anaconda or run `Boom_Box_Setup.command` again**;
+out, or restarting the Mac. **You never need to open Anaconda or run `Install_BoomBox.command` again**;
 `Boom_Box.command` switches on the program's environment by itself every time.
 
 **Method 1: Double-click**
@@ -40,14 +50,14 @@ out, or restarting the Mac. **You never need to open Anaconda or run `Boom_Box_S
   - Drag the **file** `Boom_Box.command`, not the BoomBox folder ("is a directory" means the folder was dragged).
   - "No such file or directory" means the space was missing or the file was moved; try again.
   - **Leave the Terminal window open** while the program runs.
-  - The first-time installer runs the same way: `bash`, a space, drag in `Boom_Box_Setup.command`.
+  - The first-time installer runs the same way: `bash`, a space, drag in `Install_BoomBox.command`.
 
 **Both methods**
 - Plug in the camera, USB microphone and amplifier **before** starting. If you plug the camera in later,
   click **Refresh list** on the Camera tab, then **Apply / restart camera**.
 - Close the program with its own window (the red button). Saved settings, calibration and experimenter
   names are kept for next time.
-- Only run `Boom_Box_Setup.command` again after installing a newer version of the program, or if
+- Only run `Install_BoomBox.command` again after installing a newer version of the program, or if
   the program stops starting because something is missing.
 
 ## Before each day

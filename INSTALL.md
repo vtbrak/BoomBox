@@ -12,13 +12,13 @@ The Mac instructions come first. **Using a Windows PC? Go to [Installing on Wind
 
 For a Mac that already has Anaconda and the BoomBox folder:
 
-1. Double-click **`Boom_Box_Setup.command`** (creates the `boombox` Anaconda environment, a few minutes).
+1. Double-click **`Install_BoomBox.command`** (creates the `boombox` Anaconda environment, a few minutes).
    - If macOS blocks it, right-click > Open. If it asks for an administrator password, use the **[No password method](#no-password-method)** instead.
 2. Double-click **`Boom_Box.command`** to start the program.
 3. The first time, macOS asks for **Camera** and **Microphone** access for Terminal. Allow both, then
    quit and restart the program. (System Settings > Privacy & Security > Camera / Microphone.)
 
-From a terminal instead: `conda activate boombox && python -m boombox`.
+From a terminal instead: `cd` into the folder's **app** folder, then `conda activate boombox && python -m boombox`.
 
 Starting from scratch? Follow the full steps below.
 
@@ -39,11 +39,11 @@ Starting from scratch? Follow the full steps below.
 - Go to https://github.com/vtbrak/BoomBox.
   - If the page says "404" or "not found", ask the lab member who owns the program to give your GitHub account access.
 - Click the green **Code** button, then **Download ZIP**.
-- Open your **Downloads** folder and double-click the ZIP file to unzip it. You'll get a folder named **BoomBox-main** (or **BoomBox-1.3.2** if you downloaded version 1.3.2).
+- Open your **Downloads** folder and double-click the ZIP file to unzip it. You'll get a folder named **BoomBox-main** (or **BoomBox-1.3.3** if you downloaded version 1.3.3).
 - Move that folder to your **Desktop** and rename it **BoomBox**.
 
 ## Step 4. Run the one-time setup
-- Open the **BoomBox** folder and **right-click** (or Control-click) **Boom_Box_Setup.command**, then choose **Open**.
+- Open the **BoomBox** folder and **right-click** (or Control-click) **Install_BoomBox.command**, then choose **Open**.
   - The first time, macOS warns that the file is "from an unidentified developer". Click **Open**.
   - If there's no Open button, go to **System Settings → Privacy & Security**, scroll down, click **Open Anyway** next to the file's name, and try again.
   - **Asked for an administrator password?** Use the **[No password method](#no-password-method)** at the end of this guide instead.
@@ -96,9 +96,11 @@ Starting from scratch? Follow the full steps below.
 ## Installing a newer version later
 - Download and unzip the new version as in Step 3.
 - **Before deleting the old BoomBox folder,** copy two folders from it into the new one:
-  - **config**: your calibration, camera settings and experimenter names.
-  - **Data**: your recorded sessions (unless you save them somewhere else).
-- Run **Boom_Box_Setup.command** again (Step 4) in case anything the program needs has changed.
+  - **app/config** into the new **app** folder: your calibration, camera settings and experimenter names.
+    (Versions before 1.3.3 kept **config** in the main folder. Copy it into the new main folder;
+    Boom Box moves it into **app** by itself the first time it starts.)
+  - **Data** into the new main folder: your recorded sessions (unless you save them somewhere else).
+- Run **Install_BoomBox.command** again (Step 4) in case anything the program needs has changed.
 
 ---
 
@@ -117,9 +119,9 @@ Use this if double-clicking a `.command` file asks for an **administrator passwo
 
 ### 4. Run the installer
 - Type `bash` followed by **one space**. Don't press Return yet.
-- Open the **BoomBox** folder in Finder and **drag `Boom_Box_Setup.command` into the Terminal window**. Its location appears after `bash `, for example:
+- Open the **BoomBox** folder in Finder and **drag `Install_BoomBox.command` into the Terminal window**. Its location appears after `bash `, for example:
   ```
-  bash /Users/yourname/Desktop/BoomBox/Boom_Box_Setup.command
+  bash /Users/yourname/Desktop/BoomBox/Install_BoomBox.command
   ```
 - Press **Return**.
 
@@ -142,7 +144,7 @@ Use these steps whenever you start the program again, including after closing it
 - Drag the **file** (`Boom_Box.command`), not the BoomBox folder.
 - **Leave the Terminal window open** while you use the program. Closing it quits the program.
 - Close the program with the red button on its own window. Your settings, calibration and experimenter names are kept.
-- Run the installer (`Boom_Box_Setup.command`) again only after installing a newer version of the program.
+- Run the installer (`Install_BoomBox.command`) again only after installing a newer version of the program.
 
 ### If something goes wrong
 - **"No such file or directory":** the space after `bash` was missing, or the file was moved. Try again, dragging the file from the BoomBox folder.
@@ -168,9 +170,9 @@ Windows support is new in this version and has not yet been tested on a PC. Plea
 - Move the extracted folder (**BoomBox-main**) to your **Desktop** and rename it **BoomBox**.
 
 ### Step 3. Run the one-time setup
-- Open the **BoomBox** folder and double-click **Boom_Box_Setup.bat**.
+- Open the **BoomBox** folder and double-click **Install_BoomBox.bat**.
   - If Windows shows **"Windows protected your PC"**, click **More info**, then **Run anyway**. This doesn't need an administrator password.
-  - The file may show as just **Boom_Box_Setup** if Windows hides file extensions. It's the one whose type is "Windows Batch File".
+  - The file may show as just **Install_BoomBox** if Windows hides file extensions. It's the one whose type is "Windows Batch File".
 - A black window opens and downloads everything the program needs (5–15 minutes).
 - When it says **"Done."**, press any key to close it.
 

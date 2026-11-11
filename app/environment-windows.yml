@@ -1,0 +1,18 @@
+# Exact versions for Windows. The shared packages match environment.yml (tested on a Mac);
+# all of them are confirmed to install on Windows, but Boom Box hasn't run on a PC yet.
+# Install_BoomBox.bat updates an existing environment to these in place.
+name: boombox
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11.18
+  - numpy=2.4.6
+  - pillow=13.0.0
+  - tk=8.6.13
+  - ffmpeg=9.0.2
+  - python-sounddevice=0.5.6
+  - pysoundfile=0.14.0
+  - pip=26.2.2
+  - pip:
+      - opencv-python-headless==4.14.0.94   # DirectShow camera capture + camera settings window
+      - pycaw==20260927                     # Windows volume / mute check

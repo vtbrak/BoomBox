@@ -1,12 +1,12 @@
 @echo off
 rem Double-click to start Boom Box.
 setlocal
-cd /d "%~dp0"
-call "%~dp0find_conda.bat" || goto :fail
+cd /d "%~dp0app"
+call "%~dp0app\find_conda.bat" || goto :fail
 
 call conda env list | findstr /R /C:"^boombox " >nul
 if errorlevel 1 (
-    echo The 'boombox' environment is missing. Running first-time setup...
+    echo The 'boombox' environment is missing. Running first-time install...
     call conda env create -f environment-windows.yml || goto :fail
 )
 

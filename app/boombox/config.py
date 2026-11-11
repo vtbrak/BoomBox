@@ -1,14 +1,24 @@
-"""Folder locations and persistent settings (config/settings.json)."""
+"""Folder locations and persistent settings (app/config/settings.json).
+
+The main Boom Box folder holds only what a user opens (start and install files,
+README, INSTALL, Data); the program, protocols and settings live in its app/ folder.
+"""
 
 import copy
+import filecmp
 import json
 import os
+import shutil
 from pathlib import Path
 
-APP_DIR = Path(__file__).resolve().parent.parent
+APP_DIR = Path(__file__).resolve().parent.parent      # .../Boom Box/app
+MAIN_DIR = APP_DIR.parent                             # .../Boom Box
 CONFIG_DIR = APP_DIR / "config"
 PROTOCOL_DIR = APP_DIR / "protocols"
-DEFAULT_DATA_DIR = APP_DIR / "Data"
+DEFAULT_DATA_DIR = MAIN_DIR / "Data"
+# Before Boom Box 1.3.3 these sat in the main folder.
+OLD_CONFIG_DIR = MAIN_DIR / "config"
+OLD_PROTOCOL_DIR = MAIN_DIR / "protocols"
 SETTINGS_PATH = CONFIG_DIR / "settings.json"
 CALIBRATION_PATH = CONFIG_DIR / "calibration.json"
 CALIBRATION_HISTORY_DIR = CONFIG_DIR / "calibration_history"
@@ -45,7 +55,35 @@ DEFAULT_SETTINGS = {
 }
 
 
+def _merge_into(old, new):
+    """Move everything in folder `old` into `new` without replacing anything already there.
+
+    Files that are identical in both are dropped from `old`; `old` is removed once empty.
+    """
+    new.mkdir(parents=True, exist_ok=True)
+    for item in old.iterdir():
+        dest = new / item.name
+        if not dest.exists():
+            shutil.move(str(item), str(dest))
+        elif item.is_dir() and dest.is_dir():
+            _merge_into(item, dest)
+        elif item.is_file() and dest.is_file() and filecmp.cmp(item, dest, shallow=False):
+            item.unlink()
+    try:
+        old.rmdir()
+    except OSError:           # something differs and was kept: leave it for the user
+        pass
+
+
+def migrate_old_layout():
+    """Carry settings, calibration and custom protocols over from the old folder layout."""
+    for old, new in ((OLD_CONFIG_DIR, CONFIG_DIR), (OLD_PROTOCOL_DIR, PROTOCOL_DIR)):
+        if old.is_dir():
+            _merge_into(old, new)
+
+
 def ensure_dirs():
+    migrate_old_layout()
     for d in (CONFIG_DIR, PROTOCOL_DIR, CALIBRATION_HISTORY_DIR):
         d.mkdir(parents=True, exist_ok=True)
 

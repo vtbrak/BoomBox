@@ -1,8 +1,9 @@
 @echo off
-rem Double-click once to create (or update) the 'boombox' Anaconda environment.
+rem Double-click to install Boom Box, or to update it after downloading a new version.
+rem Creates the 'boombox' Anaconda environment, or updates an existing one in place.
 setlocal
-cd /d "%~dp0"
-call "%~dp0find_conda.bat" || goto :noconda
+cd /d "%~dp0app"
+call "%~dp0app\find_conda.bat" || goto :noconda
 
 call conda env list | findstr /R /C:"^boombox " >nul
 if errorlevel 1 (
@@ -20,12 +21,12 @@ exit /b 0
 
 :failed
 echo.
-echo Setup FAILED (see the messages above).
+echo Install FAILED (see the messages above).
 pause
 exit /b 1
 
 :noconda
 echo.
-echo Could not find Anaconda, so nothing was set up.
+echo Could not find Anaconda, so nothing was installed.
 pause
 exit /b 1

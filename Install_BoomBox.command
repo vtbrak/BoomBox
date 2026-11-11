@@ -1,6 +1,7 @@
 #!/bin/bash
-# Double-click once to create (or update) the 'boombox' Anaconda environment.
-cd "$(dirname "$0")" || exit 1
+# Double-click to install Boom Box, or to update it after downloading a new version.
+# Creates the 'boombox' Anaconda environment, or updates an existing one in place.
+cd "$(dirname "$0")/app" || exit 1
 source ./find_conda.sh || { read -r -p "Press Return to close."; exit 1; }
 
 if conda env list | grep -qE '^boombox\s'; then
@@ -15,5 +16,5 @@ echo
 if [ $status -eq 0 ]; then
     read -r -p "Done. Press Return to close."
 else
-    read -r -p "Setup FAILED (see the messages above). Press Return to close."
+    read -r -p "Install FAILED (see the messages above). Press Return to close."
 fi
