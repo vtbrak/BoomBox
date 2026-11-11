@@ -25,7 +25,9 @@ class SessionFileTests(unittest.TestCase):
     @QUIET_VOLUME
     def test_full_session_writes_every_file(self, _vol):
         with TempDir() as d:
-            s, engine, cam, logs = make_session(d)
+            from tests.helpers import short_protocol
+            ref = "https://doi.org/10.1523/JNEUROSCI.1313-25.2026"
+            s, engine, cam, logs = make_session(d, protocol=short_protocol(reference=ref))
             try:
                 run_session(s)
             finally:
@@ -40,6 +42,8 @@ class SessionFileTests(unittest.TestCase):
             cam_entry = info["cameras"][0]
             self.assertEqual(cam_entry["frames"], cam_entry["verified_frames_in_file"])
             self.assertEqual([x["pulse_freq_hz"] for x in info["stimuli"]], [8000.0, 12000.0])
+            self.assertEqual(info["boom_box"]["protocol_reference"], ref)
+            self.assertIn(ref, (s.folder / f"{base}_events.log").read_text(encoding="utf-8"))
             with open(s.folder / f"{base}_Side_frames.csv", encoding="utf-8") as f:
                 self.assertEqual(sum(1 for _ in f) - 1, cam_entry["frames"])
 

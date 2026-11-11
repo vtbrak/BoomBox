@@ -1,8 +1,12 @@
 """USB camera capture and constant-frame-rate MP4 recording.
 
-macOS: frames come from ffmpeg (AVFoundation) as raw grayscale.
-Windows: frames come from OpenCV (DirectShow), which also gives access to the
-camera's own settings window and its exposure/gain/focus properties.
+Cameras are read through OpenCV: AVFoundation on macOS, DirectShow on Windows
+(which also gives access to the camera's own settings window and its
+exposure/gain/focus properties). On macOS the camera's settings are set over
+USB instead (uvc.py). ffmpeg is not used for camera capture on macOS because it
+picks the last camera mode that matches the size: for cameras that list a slow
+uncompressed 1280x720 mode after the fast compressed one, that capped
+recordings at 10 fps. The test pattern comes from ffmpeg.
 
 Frames are timestamped on arrival with time.perf_counter() (minus a
 configurable camera latency). The recorder keeps the output locked to the wall
@@ -131,15 +135,6 @@ def list_modes(name, index=None):
     return sorted(modes)
 
 
-def pick_framerate(modes, width, height, fps):
-    """Exact framerate string the device accepts (e.g. 30.000030), or None if unsupported."""
-    best = None
-    for w, h, f in modes:
-        if (w, h) == (width, height) and abs(f - fps) < 0.5:
-            best = f
-    return None if best is None else f"{best:.6f}"
-
-
 def usb_cameras():
     """{camera name: (vendor_id, product_id)} for USB (UVC) cameras."""
     cams = {}
@@ -182,13 +177,15 @@ def default_camera(names):
 
 
 def make_camera(name, width, height, fps, latency_ms=0.0):
-    """The right capture class for this computer and camera."""
-    if IS_WINDOWS and name != TEST_PATTERN:
-        return DShowCamera(name, width, height, fps, latency_ms)
-    return Camera(name, width, height, fps, latency_ms)
+    """The right capture class for this camera (the test pattern comes from ffmpeg)."""
+    if name == TEST_PATTERN:
+        return TestPatternCamera(name, width, height, fps, latency_ms)
+    return CVCamera(name, width, height, fps, latency_ms)
 
 
-class Camera:
+class TestPatternCamera:
+    """A moving test picture from ffmpeg, for trying the program without a camera."""
+
     has_settings_dialog = False
 
     def __init__(self, name, width, height, fps, latency_ms=0.0):
@@ -206,20 +203,9 @@ class Camera:
         self._stop = threading.Event()
 
     def _command(self):
-        ff = ffmpeg_path()
-        if self.name == TEST_PATTERN:
-            src = ["-re", "-f", "lavfi", "-i",
-                   f"testsrc2=size={self.width}x{self.height}:rate={self.fps}"]
-        else:
-            idx = camera_index(self.name)
-            rate = pick_framerate(list_modes(self.name, idx), self.width, self.height, self.fps)
-            if rate is None:
-                raise RuntimeError(f"{self.name} does not support {self.width}x{self.height} "
-                                   f"at {self.fps} fps. Use 'Show camera modes' to see options.")
-            src = ["-f", "avfoundation", "-pixel_format", "nv12", "-framerate", rate,
-                   "-video_size", f"{self.width}x{self.height}", "-i", f"{idx}:none"]
-        return [ff, "-hide_banner", "-loglevel", "warning", "-fflags", "nobuffer",
-                "-flags", "low_delay", *src, "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"]
+        src = ["-re", "-f", "lavfi", "-i", f"testsrc2=size={self.width}x{self.height}:rate={self.fps}"]
+        return [ffmpeg_path(), "-hide_banner", "-loglevel", "warning", *src,
+                "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"]
 
     def start(self):
         cmd = self._command()
@@ -247,7 +233,7 @@ class Camera:
     def _read_stderr(self):
         for raw in iter(self._proc.stderr.readline, b""):
             line = raw.decode(errors="replace").strip()
-            if line and "AVCaptureDeviceTypeExternal is deprecated" not in line:
+            if line:
                 self._stderr.append(line)
 
     def stderr_text(self):
@@ -278,19 +264,21 @@ class Camera:
             self.error = self.stderr_text() or "Camera stream ended unexpectedly."
 
 
-class DShowCamera:
-    """Windows capture through OpenCV/DirectShow, with the same interface as Camera.
+class CVCamera:
+    """Camera capture through OpenCV (AVFoundation on macOS, DirectShow on Windows).
 
     The capture device is opened and used only on the capture thread (DirectShow
     objects belong to the thread that created them); camera-setting calls from
-    the GUI are queued to that thread.
+    the GUI are queued to that thread. The driver settings window and the
+    OpenCV camera properties are used on Windows only; on macOS the GUI sets the
+    camera over USB (uvc.py).
     """
 
     # Properties read when settings are locked and re-applied at every session.
     # Auto modes come first so manual values stick.
     CONTROL_NAMES = ["auto_exposure", "autofocus", "exposure", "gain", "focus", "brightness",
                      "contrast", "gamma", "sharpness", "white_balance"]
-    has_settings_dialog = True
+    has_settings_dialog = IS_WINDOWS
 
     def __init__(self, name, width, height, fps, latency_ms=0.0):
         import cv2
@@ -372,11 +360,13 @@ class DShowCamera:
     # -- capture loop -----------------------------------------------------------
     def _run(self):
         cv2 = self.cv2
-        cap = cv2.VideoCapture(self._index, cv2.CAP_DSHOW)
+        cap = cv2.VideoCapture(self._index, cv2.CAP_DSHOW if IS_WINDOWS else cv2.CAP_AVFOUNDATION)
         if not cap.isOpened():
-            self.error = f"Could not open camera '{self.name}'. Is another program using it?"
+            self.error = (f"Could not open camera '{self.name}'. Is another program using it, "
+                          "or is camera access turned off for Terminal?")
             return
-        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        if IS_WINDOWS:   # macOS picks the compressed (MJPEG) mode itself when it's needed
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         cap.set(cv2.CAP_PROP_FPS, self.fps)

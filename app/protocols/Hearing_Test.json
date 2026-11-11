@@ -3,6 +3,7 @@
   "type": "list",
   "builtin": true,
   "assay_variant": "",
+  "reference": "https://iacuc.ucsf.edu/content/acoustic-startle-response (UCSF IACUC standard procedure)",
   "startle": {
     "stimulus": "tone",
     "rise_ms": 5.0,

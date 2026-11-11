@@ -3,6 +3,7 @@
   "type": "list",
   "builtin": true,
   "assay_variant": "",
+  "reference": "https://doi.org/10.1016/j.jneumeth.2025.110497",
   "startle": {
     "stimulus": "tone",
     "rise_ms": 5.0,

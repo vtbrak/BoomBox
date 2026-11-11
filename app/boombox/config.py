@@ -77,6 +77,11 @@ def _merge_into(old, new):
 
 def migrate_old_layout():
     """Carry settings, calibration and custom protocols over from the old folder layout."""
+    if OLD_PROTOCOL_DIR.is_dir():
+        # Old copies of built-in protocols aren't needed: the program writes current ones.
+        for f in OLD_PROTOCOL_DIR.glob("*.json"):
+            if load_json(f, {}).get("builtin"):
+                f.unlink()
     for old, new in ((OLD_CONFIG_DIR, CONFIG_DIR), (OLD_PROTOCOL_DIR, PROTOCOL_DIR)):
         if old.is_dir():
             _merge_into(old, new)

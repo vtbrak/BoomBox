@@ -46,6 +46,37 @@ class ProtocolTests(unittest.TestCase):
             shown.assert_called_once()
             app.refresh_protocol_list.assert_not_called()
 
+    def test_io_schedule(self):
+        p = protocols.BUILTINS[protocols.IO_NAME]
+        self.assertEqual(p["reference"], "https://doi.org/10.1523/JNEUROSCI.1313-25.2026")
+        hab = protocols.BUILTINS[protocols.HABITUATION_NAME]["reference"]
+        self.assertIn("https://doi.org/10.3389/fnint.2013.00103", hab)
+        self.assertIn("https://doi.org/10.1016/j.jneumeth.2025.110497", hab)    # the 8 kHz choice
+        self.assertEqual(protocols.BUILTINS[protocols.TVS_NAME]["reference"],
+                         "https://doi.org/10.1016/j.jneumeth.2025.110497")
+        self.assertIn("https://iacuc.ucsf.edu/content/acoustic-startle-response",
+                      protocols.BUILTINS[protocols.HEARING_NAME]["reference"])
+        trials, _ = protocols.build_schedule(p)
+        self.assertEqual(len(trials), 35)
+        level = lambda t: t["pulse"]["level_db"] if t["pulse"] else None
+        for b in range(5):                       # every block has each level once
+            block = trials[b * 7:(b + 1) * 7]
+            self.assertEqual(sorted(map(str, map(level, block))),
+                             sorted(map(str, [70.0, 80.0, 90.0, 100.0, 110.0, 120.0, None])))
+        self.assertTrue(all(t["pulse"]["stimulus"] == "noise" for t in trials if t["pulse"]))
+        self.assertEqual([t["ref_time_s"] for t in trials[:2]], [300.0, 315.0])
+        widths = {round(sum(t["pulse"][k] for k in ("rise_ms", "plateau_ms", "fall_ms")), 6)
+                  for t in trials if t["pulse"]}
+        self.assertEqual(widths, {40.0})
+
+    def test_builtin_files_are_refreshed_to_this_version(self):
+        with TempDir() as d, mock.patch.object(config, "PROTOCOL_DIR", d):
+            (d / "Hearing_Test.json").write_text(json.dumps(dict(protocols.BUILTINS[protocols.HEARING_NAME],
+                                                                 end_padding_s=99)))
+            protocols.ensure_builtin()
+            self.assertEqual(protocols.load(protocols.HEARING_NAME), protocols.BUILTINS[protocols.HEARING_NAME])
+            self.assertEqual(protocols.load(protocols.IO_NAME)["type"], "io")
+
     def test_ppi_schedule_is_repeatable_with_a_seed(self):
         p = dict(protocols.DEFAULT_PPI, seed=7)
         a, _ = protocols.build_schedule(p)

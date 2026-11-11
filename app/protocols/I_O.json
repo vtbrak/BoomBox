@@ -1,0 +1,30 @@
+{
+  "name": "I/O",
+  "type": "io",
+  "builtin": true,
+  "assay_variant": "",
+  "reference": "https://doi.org/10.1523/JNEUROSCI.1313-25.2026",
+  "background_noise_db": 65.0,
+  "acclimation_s": 300.0,
+  "end_padding_s": 30.0,
+  "pulse": {
+    "stimulus": "noise",
+    "freq_hz": 8000,
+    "rise_ms": 2.0,
+    "plateau_ms": 36.0,
+    "fall_ms": 2.0
+  },
+  "levels_db": [
+    70,
+    80,
+    90,
+    100,
+    110,
+    120
+  ],
+  "include_no_stim": true,
+  "repeats": 5,
+  "iti_s": 15.0,
+  "randomize": true,
+  "seed": null
+}

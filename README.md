@@ -89,6 +89,10 @@ Default is **1280x720 at 30 fps**; 60 and 90 fps can be selected if the camera s
 preview, then tick **Lock camera settings**. Locked values are saved and re-applied at every session.
 Turn auto exposure off and keep the exposure shorter than one frame (33 ms at 30 fps, 11 ms at 90 fps).
 
+Before version 1.3.4, Macs recorded 1280x720 video at only 10 fps (the camera's slow uncompressed
+mode). Boom Box repeated frames to keep the MP4 at 30 fps, so those recordings show about two
+repeated frames out of every three. Each repeat is marked in the `_frames.csv`.
+
 *Camera latency (ms)* is subtracted from each frame's arrival time. Leave it at 0 unless you
 measure it (for example, film an LED that the program flashes or a hand clap the mic records).
 
@@ -97,18 +101,29 @@ measure it (for example, film an LED that the program flashes or a hand clap the
 Every protocol starts with a **5-minute habituation** in 65 dB background white noise. All tones are
 10 ms bursts with a raised-cosine envelope (5 ms rise, 5 ms fall, no plateau).
 
-Three protocols are built in and locked. Their settings are editable after **Unlock for editing**;
+Four protocols are built in and locked. Their settings are editable after **Unlock for editing**;
 changes are saved under a new name, and *Restore original* brings back the built-in version.
 
 - **Tone Volume Sensitivity** (formerly "ASR Standard"): 15 tones at 105 dB. Frequencies 12, 4, 16,
   20, 8, 4, 20, 16, 12, 8, 8, 16, 4, 20, 12 kHz at 300, 337, 365, 398, 428, 440, 471, 514, 533, 568,
   599, 638, 666, 695 and 710 s. That's the published series (first tone at 120 s), shifted so the
-  first tone comes right after the habituation.
+  first tone comes right after the habituation. From https://doi.org/10.1016/j.jneumeth.2025.110497.
 - **Startle Habituation**: 100 tones at 8 kHz and 115 dB, one every 15 s from 300 s. Recorded with
-  the `Startle Habituation` assay variant.
+  the `Startle Habituation` assay variant. The habituation design is from
+  https://doi.org/10.3389/fnint.2013.00103; the 8 kHz frequency and 115 dB level
+  were chosen from https://doi.org/10.1016/j.jneumeth.2025.110497.
 - **Hearing Test**: the background noise turns off after the habituation, so quiet tones can be heard.
   Then 8 kHz tones at 40, 50, 60, 70, 80, 90, 100, 110 and 120 dB, in two ascending and two descending
   series (ascending, descending, ascending, descending), one every 15 s from 315 s: 36 tones.
+  From the UCSF IACUC standard procedure, https://iacuc.ucsf.edu/content/acoustic-startle-response.
+- **I/O** (input/output curve): 40 ms white-noise bursts at 70, 80, 90, 100, 110 and 120 dB plus a
+  no-stimulus trial, in five blocks, each with all seven in a new random order, one every 15 s from
+  300 s: 35 trials, with the 65 dB background noise throughout. From
+  https://doi.org/10.1523/JNEUROSCI.1313-25.2026. Note that a 120 dB noise burst needs more speaker
+  output than a 120 dB tone; the Calibration tab's *Check selected protocol* shows whether it's reachable.
+
+Every protocol has a **Reference** field for the paper its design comes from; it's saved with each
+session (in the info file and the event log).
 
 Other protocols:
 - **New list**: any times and frequencies, typed in or generated (fixed or random gaps). Each line is

@@ -947,10 +947,11 @@ class App:
                 b.pack(side="left", padx=6)
             else:
                 b.pack_forget()
-        if p["type"] == "list":
-            self._list_editor(p)
-        else:
-            self._ppi_editor(p)
+        {"list": self._list_editor, "ppi": self._ppi_editor, "io": self._io_editor}[p["type"]](p)
+        ref = ttk.Frame(self.editor)
+        ref.grid(row=10, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        self._field(ref, 0, 0, "Reference (paper the protocol comes from, e.g. a DOI link)", ("reference",),
+                    p.get("reference", ""), kind="str", width=48)
         self._set_editor_state()
         self.preview_schedule()
 
@@ -1069,6 +1070,38 @@ class App:
                     p["n_prepulse_pulse_each"], kind="int")
         self._field(tr, 2, 2, "Prepulse-alone, per level", ("n_prepulse_alone_each",),
                     p["n_prepulse_alone_each"], kind="int")
+
+    def _io_editor(self, p):
+        e = self.editor
+        gen = ttk.LabelFrame(e, text="Session", padding=6)
+        gen.grid(row=0, column=0, sticky="nw")
+        self._field(gen, 0, 0, "Background noise (dB SPL, blank = off)", ("background_noise_db",),
+                    p.get("background_noise_db"), kind="opt_float")
+        self._field(gen, 1, 0, "Habituation before 1st trial (s)", ("acclimation_s",), p["acclimation_s"])
+        self._field(gen, 2, 0, "Time between trials (s)", ("iti_s",), p["iti_s"])
+        self._field(gen, 3, 0, "Record after last trial (s)", ("end_padding_s",), p["end_padding_s"])
+        self._field(gen, 4, 0, "Shuffle each block", ("randomize",), "yes" if p["randomize"] else "no",
+                    kind="bool", values=["yes", "no"])
+        self._field(gen, 5, 0, "Random seed (blank = new each run)", ("seed",), p.get("seed"), kind="opt_int")
+        self._field(gen, 6, 0, "Assay variant (blank = plain startle)", ("assay_variant",),
+                    p.get("assay_variant", ""), kind="str", width=18, values=protocols.ASSAY_VARIANTS)
+
+        pu = ttk.LabelFrame(e, text="Startle sound", padding=6)
+        pu.grid(row=0, column=1, sticky="nw", padx=8)
+        pp = p["pulse"]
+        self._field(pu, 0, 0, "Stimulus", ("pulse", "stimulus"), pp["stimulus"], kind="str",
+                    values=["noise", "tone"])
+        self._field(pu, 1, 0, "Frequency (Hz, tone only)", ("pulse", "freq_hz"), pp["freq_hz"])
+        self._field(pu, 2, 0, "Rise (ms)", ("pulse", "rise_ms"), pp["rise_ms"])
+        self._field(pu, 3, 0, "Plateau (ms)", ("pulse", "plateau_ms"), pp["plateau_ms"])
+        self._field(pu, 4, 0, "Fall (ms)", ("pulse", "fall_ms"), pp["fall_ms"])
+
+        tr = ttk.LabelFrame(e, text="Trials", padding=6)
+        tr.grid(row=0, column=2, sticky="nw", padx=8)
+        self._field(tr, 0, 0, "Levels (dB SPL)", ("levels_db",), p["levels_db"], kind="list", width=22)
+        self._field(tr, 1, 0, "Add a no-stimulus trial", ("include_no_stim",),
+                    "yes" if p.get("include_no_stim") else "no", kind="bool", values=["yes", "no"])
+        self._field(tr, 2, 0, "Blocks (each level once per block)", ("repeats",), p["repeats"], kind="int")
 
     def _set_editor_state(self):
         locked = self.is_locked()

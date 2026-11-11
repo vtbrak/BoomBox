@@ -1,4 +1,4 @@
-# Exact versions the tests pass with (Mac, Boom Box 1.3.3). Install_BoomBox updates an
+# Exact versions the tests pass with (Mac, Boom Box 1.3.4). Install_BoomBox updates an
 # existing environment to these in place. Change a version only after testing it.
 name: boombox
 channels:
@@ -13,3 +13,6 @@ dependencies:
   - pysoundfile=0.14.0
   - pyusb=1.3.1
   - libusb=1.0.30
+  - pip=26.2.2
+  - pip:
+      - opencv-python-headless==4.14.0.94   # camera capture (AVFoundation)

@@ -140,6 +140,7 @@ class Session:
         cam = self.camera
         self.log(f"Recording started (frame 0). {cam.width}x{cam.height} @ {cam.fps} fps, "
                  f"{len(self.trials)} trials, {self.total_s:.1f} s")
+        self.log(f"Protocol: {self.protocol['name']}. Reference: {self.protocol.get('reference') or 'none given'}")
         for i, role, wave, onset_s, dbfs, status in rendered:
             ev = self.engine.schedule(wave, self.t0 + onset_s, {"trial": i, "role": role})
             self.stim_events.append((i, role, ev, dbfs, status))
@@ -477,6 +478,8 @@ class Session:
                                     "Prepulse Inhibition" if self.protocol["type"] == "ppi" else "")
         app = {
             "protocol_name": self.protocol["name"],
+            # The paper the protocol's design comes from (a DOI link), if one was given.
+            "protocol_reference": self.protocol.get("reference") or None,
             "session_folder": self.folder.name,
             "time_reference": "Times in seconds (stimuli, _frames.csv) or ms (trials) from the start "
                               "of video frame 0; frames are counted from 0.",

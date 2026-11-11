@@ -1,8 +1,13 @@
 """Stimulus protocols and schedule generation.
 
-Two protocol types, stored as JSON in protocols/:
+Three protocol types, stored as JSON in protocols/:
   * "list": startle stimuli at listed times (the built-in protocols and custom lists)
   * "ppi":  prepulse inhibition trials generated from editable parameters
+  * "io":   input/output curve: each level (plus optional no-stimulus trials) repeated
+            in balanced, shuffled blocks at a fixed interval
+
+Every protocol may carry a "reference": the paper(s) or procedure its design comes
+from (DOI or web links, with a short note), recorded with each session.
 
 Every built-in protocol starts with a 5-minute habituation in background white
 noise. "background_noise_off_s" (optional) turns the noise off at that time,
@@ -33,20 +38,27 @@ ASSAY_VARIANTS = ["", "Prepulse Inhibition", "Startle Habituation"]
 # Tone Volume Sensitivity: the published startle series (first tone at 120 s),
 # shifted so the first tone comes right after the 5-minute habituation.
 TVS_NAME = "Tone Volume Sensitivity"
+TVS_REFERENCE = "https://doi.org/10.1016/j.jneumeth.2025.110497"
 TVS_PUBLISHED_TIMES_S = [120, 157, 185, 218, 248, 260, 291, 334, 353, 388, 419, 458, 486, 515, 530]
 TVS_TIMES_S = [t - TVS_PUBLISHED_TIMES_S[0] + HABITUATION_S for t in TVS_PUBLISHED_TIMES_S]
 TVS_FREQS_KHZ = [12, 4, 16, 20, 8, 4, 20, 16, 12, 8, 8, 16, 4, 20, 12]
 
 HABITUATION_NAME = "Startle Habituation"
+HABITUATION_REFERENCE = ("https://doi.org/10.3389/fnint.2013.00103 (habituation design); "
+                         f"{TVS_REFERENCE} (choice of the 8 kHz tone at 115 dB)")
 HEARING_NAME = "Hearing Test"
+HEARING_REFERENCE = "https://iacuc.ucsf.edu/content/acoustic-startle-response (UCSF IACUC standard procedure)"
 HEARING_LEVELS_DB = [40, 50, 60, 70, 80, 90, 100, 110, 120]
 HEARING_ITI_S = 15.0
 # Two ascending and two descending series, alternating.
 HEARING_ORDER_DB = (HEARING_LEVELS_DB + HEARING_LEVELS_DB[::-1]) * 2
 
+IO_NAME = "I/O"
+IO_REFERENCE = "https://doi.org/10.1523/JNEUROSCI.1313-25.2026"
+
 BUILTINS = {
     TVS_NAME: {
-        "name": TVS_NAME, "type": "list", "builtin": True, "assay_variant": "",
+        "name": TVS_NAME, "type": "list", "builtin": True, "assay_variant": "", "reference": TVS_REFERENCE,
         "startle": dict(TONE, level_db=105.0),
         "background_noise_db": 65.0,
         "end_padding_s": 30.0,
@@ -54,7 +66,7 @@ BUILTINS = {
     },
     HABITUATION_NAME: {
         "name": HABITUATION_NAME, "type": "list", "builtin": True,
-        "assay_variant": "Startle Habituation",
+        "assay_variant": "Startle Habituation", "reference": HABITUATION_REFERENCE,
         "startle": dict(TONE, level_db=115.0),
         "background_noise_db": 65.0,
         "end_padding_s": 30.0,
@@ -62,12 +74,29 @@ BUILTINS = {
     },
     HEARING_NAME: {
         "name": HEARING_NAME, "type": "list", "builtin": True, "assay_variant": "",
+        "reference": HEARING_REFERENCE,
         "startle": dict(TONE, level_db=80.0),
         "background_noise_db": 65.0,
         "background_noise_off_s": float(HABITUATION_S),   # quiet stimuli must not be masked
         "end_padding_s": 30.0,
         "trials": [{"time_s": HABITUATION_S + HEARING_ITI_S * (i + 1), "freq_hz": 8000, "level_db": float(db)}
                    for i, db in enumerate(HEARING_ORDER_DB)],
+    },
+    # 40 ms noise bursts at 70-120 dB plus a no-stimulus trial, five of each in balanced
+    # shuffled blocks, every 15 s, with background noise throughout.
+    IO_NAME: {
+        "name": IO_NAME, "type": "io", "builtin": True, "assay_variant": "",
+        "reference": IO_REFERENCE,
+        "background_noise_db": 65.0,
+        "acclimation_s": float(HABITUATION_S),
+        "end_padding_s": 30.0,
+        "pulse": {"stimulus": "noise", "freq_hz": 8000, "rise_ms": 2.0, "plateau_ms": 36.0, "fall_ms": 2.0},
+        "levels_db": [70, 80, 90, 100, 110, 120],
+        "include_no_stim": True,
+        "repeats": 5,
+        "iti_s": 15.0,
+        "randomize": True,
+        "seed": None,
     },
 }
 LEGACY_BUILTIN_NAMES = ["ASR Standard"]   # old name of Tone Volume Sensitivity
@@ -76,6 +105,7 @@ DEFAULT_LIST = {
     "name": "Custom list",
     "type": "list",
     "assay_variant": "",
+    "reference": "",
     "startle": dict(TONE, level_db=105.0),
     "background_noise_db": 65.0,
     "end_padding_s": 30.0,
@@ -86,6 +116,7 @@ DEFAULT_PPI = {
     "name": "PPI Default",
     "type": "ppi",
     "assay_variant": "Prepulse Inhibition",
+    "reference": "",
     "background_noise_db": 65.0,
     "acclimation_s": float(HABITUATION_S),
     "end_padding_s": 30.0,
@@ -116,9 +147,10 @@ def is_builtin(name):
 
 
 def ensure_builtin():
+    # Built-ins are locked and defined here, so keep their files identical to this version.
     for name, proto in BUILTINS.items():
         path = config.PROTOCOL_DIR / _filename(name)
-        if not path.exists():
+        if config.load_json(path, None) != proto:
             config.save_json(path, proto)
     for old in LEGACY_BUILTIN_NAMES:      # the built-in under its old name
         path = config.PROTOCOL_DIR / _filename(old)
@@ -192,6 +224,8 @@ def build_schedule(protocol):
         trials = _list_schedule(protocol)
     elif protocol["type"] == "ppi":
         trials = _ppi_schedule(protocol)
+    elif protocol["type"] == "io":
+        trials = _io_schedule(protocol)
     else:
         raise ValueError(f"Unknown protocol type: {protocol['type']}")
     if not trials:
@@ -275,6 +309,35 @@ def _ppi_schedule(p):
     return trials
 
 
+def _io_schedule(p):
+    levels = [float(x) for x in p["levels_db"]]
+    kinds = [("startle", lv) for lv in levels] + ([("no_stim", None)] if p.get("include_no_stim") else [])
+    repeats, iti = int(p["repeats"]), float(p["iti_s"])
+    if not levels or repeats < 1:
+        raise ValueError("I/O needs at least one level and one repeat.")
+    if iti <= 0:
+        raise ValueError("The interval between trials must be more than 0 s.")
+    rng = random.Random(p.get("seed"))
+    order = []
+    for _ in range(repeats):          # each block has every level once
+        block = list(kinds)
+        if p.get("randomize", True):
+            rng.shuffle(block)
+        order += block
+    pulse_def = p["pulse"]
+    t0 = float(p["acclimation_s"])
+    trials = []
+    for i, (kind, lv) in enumerate(order, start=1):
+        t = t0 + (i - 1) * iti
+        pulse = None
+        if kind == "startle":
+            pulse = {k: pulse_def[k] for k in ("stimulus", "freq_hz", "rise_ms", "plateau_ms", "fall_ms")}
+            pulse.update(level_db=lv, onset_s=t)
+        trials.append({"trial": i, "type": kind, "ref_time_s": t,
+                       "pulse": pulse, "prepulse": None, "lead_ms": None})
+    return trials
+
+
 def describe_schedule(trials, total_s):
     lines = [f"{len(trials)} trials, session length {total_s:.1f} s ({total_s / 60:.1f} min)", ""]
     lines.append(f"{'#':>3}  {'time (s)':>9}  {'type':<15} stimulus")
@@ -296,6 +359,8 @@ def describe_schedule(trials, total_s):
 
 def stimuli_used(protocol):
     """Unique stimulus definitions a protocol plays (for calibration checks)."""
+    if protocol["type"] == "io":
+        return [dict(protocol["pulse"], level_db=float(lv)) for lv in protocol["levels_db"]]
     if protocol["type"] == "list":
         st = protocol["startle"]
         return [dict(st, freq_hz=float(t["freq_hz"]), level_db=float(t.get("level_db", st["level_db"])))

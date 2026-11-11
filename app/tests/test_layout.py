@@ -17,6 +17,9 @@ class OldLayoutTests(unittest.TestCase):
             (main / "config" / "calibration_history" / "c1.json").write_text("{}")
             (main / "protocols").mkdir()
             (main / "protocols" / "My_list.json").write_text('{"name": "My list"}')
+            # An old built-in that differs from the current one is dropped, not left behind.
+            (main / "protocols" / "Tone_Volume_Sensitivity.json").write_text(
+                '{"name": "Tone Volume Sensitivity", "builtin": true, "old": 1}')
             (app / "protocols").mkdir(parents=True)
             (main / "protocols" / "Hearing_Test.json").write_text('{"name": "Hearing Test"}')
             (app / "protocols" / "Hearing_Test.json").write_text('{"name": "Hearing Test"}')
