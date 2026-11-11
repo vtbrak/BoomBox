@@ -41,6 +41,12 @@ Don't work out the start time from the **folder name**. It's set just before
 recording starts and can differ from the file names by a second or so. Use
 `date` and `start_time`.
 
+**A folder with no `_info.json` is a failed recording.** If the video encoder
+fails (for example, a full disk), Boom Box doesn't write `_info.json`, because
+there's no usable video for it to describe. The folder still has the
+`_trials.csv`, `_frames.csv` and `_events.log` files, and any partial video is
+left as `_video.mp4`. Track Tamer can skip such folders. (Since Boom Box 1.3.2.)
+
 ---
 
 ## 3. Conventions
@@ -52,6 +58,9 @@ recording starts and can differ from the file names by a second or so. Use
 - **Missing values:** in the standard fields, an unknown or empty value is left
   out. Inside `boom_box` it may be `""` or `null`.
 - **`sex`** is always written, as `F`, `M` or `U`.
+- **Text encoding:** every text file (`_info.json`, `_info.csv`, `_frames.csv`,
+  `_trials.csv`, `_events.log`) is UTF-8, on Mac and Windows alike. Before 1.3.2,
+  Windows wrote the CSV files and the log in its own default encoding.
 
 ---
 
@@ -206,7 +215,7 @@ These matter when choosing the window to search for a startle.
 | Field | What it is |
 |---|---|
 | `trials` | Per-trial detail (section 9) |
-| `protocol` | The full protocol used, including its name, tone shape and background noise level |
+| `protocol` | The full protocol used, including its name, tone shape and background noise level (`background_noise_db`). If it has `background_noise_off_s`, the noise was turned off at that many seconds from frame 0 |
 | `protocol_name` | Its name, e.g. `Tone Volume Sensitivity` |
 | `schedule` | The planned trials |
 | `calibrated` | Whether a speaker calibration existed |
@@ -255,9 +264,6 @@ reached are always at the end.
 | `_mic_frame` | Video frame at `_mic_ms` |
 | `_mic_minus_actual_ms` | Delay from the computer to the microphone |
 
-**Frequency:** the built-in `Tone Volume Sensitivity` protocol plays 15 tones, three each at
-4, 8, 12, 16 and 20 kHz, in a fixed order. Use `pulse_freq_hz` to group them.
-
 **dB levels are requested, not measured.** They're only true dB SPL if
 `_calibration` is `calibrated`. The microphone doesn't measure loudness.
 
@@ -268,7 +274,26 @@ less sensitive there. A blank doesn't mean the tone didn't play.
 
 ---
 
-## 10. Audio
+## 10. Built-in protocols
+
+`boom_box.protocol_name` says which protocol was run. Every protocol starts with
+a **5-minute habituation** in 65 dB background white noise, so the first
+stimulus is at 300 s or later. All tones are 10 ms bursts (5 ms rise, 5 ms fall).
+
+| `protocol_name` | What it plays | `assay_variant` | Group results by |
+|---|---|---|---|
+| `Tone Volume Sensitivity` | 15 tones at 105 dB: three each at 4, 8, 12, 16 and 20 kHz, in a fixed order, at 300–710 s. Formerly called `ASR Standard` | left out | `pulse_freq_hz` |
+| `Startle Habituation` | 100 tones at 8 kHz and 115 dB, one every 15 s from 300 s | `Startle Habituation` | stimulus order (trial 1 to 100) |
+| `Hearing Test` | 36 tones at 8 kHz: 40, 50 … 120 dB in four series (ascending, descending, ascending, descending), one every 15 s from 315 s. **The background noise turns off at 300 s**, so these tones play in silence | left out | `pulse_db` |
+| `PPI Default` and other PPI protocols | Pulses, prepulse+pulse, prepulse-only and no-stimulus trials in random order (unless a seed is set) | `Prepulse Inhibition` | `type`, `prepulse_db`, `interval_ms` |
+
+Users can also make their own tone lists, which can set a different level for
+each tone and a time to turn the noise off. Read `pulse_db` from each stimulus
+rather than assuming one level per session.
+
+---
+
+## 11. Audio
 
 The MP4 has the microphone as an audio track (AAC), lined up with the video. The
 `_audio.wav` file has the same recording at full quality. Neither is needed for
@@ -277,7 +302,7 @@ frames to show when a tone played.
 
 ---
 
-## 11. Recorded but not in the standard
+## 12. Recorded but not in the standard
 
 Boom Box also records these. The standard leaves them out for now, so they stay
 in `boom_box`.
@@ -291,7 +316,7 @@ in `boom_box`.
 
 ---
 
-## 12. Status
+## 13. Status
 
 - The file format was checked with a short test session on a Mac, using the test
   camera. It hasn't yet been checked with the lab's camera in a real session.
