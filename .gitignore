@@ -2,6 +2,9 @@
 Data/
 config/
 
+# Temporary files from test runs (removed after each run)
+app/tests/.tmp/
+
 __pycache__/
 *.pyc
 .DS_Store

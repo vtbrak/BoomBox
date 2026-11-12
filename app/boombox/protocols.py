@@ -278,6 +278,19 @@ def _trial_end_s(trial):
     return end
 
 
+# A white-noise line in a list protocol has no frequency; this one is used only to pick
+# out the burst in the microphone recording (as for noise pulses in PPI and I/O).
+NOISE_DETECT_HZ = 8000.0
+
+
+def list_line_stimulus(st, tr):
+    """(stimulus, freq_hz) for one line of a list protocol: a tone, or white noise."""
+    kind = tr.get("stimulus", st.get("stimulus", "tone"))
+    if kind == "noise":
+        return "noise", NOISE_DETECT_HZ
+    return "tone", float(tr["freq_hz"])
+
+
 def _list_schedule(p):
     st = p["startle"]
     trials = []
@@ -285,7 +298,8 @@ def _list_schedule(p):
         t = float(tr["time_s"])
         if t < 0:
             raise ValueError("Trial times must be >= 0.")
-        pulse = {"stimulus": st.get("stimulus", "tone"), "freq_hz": float(tr["freq_hz"]),
+        kind, freq = list_line_stimulus(st, tr)
+        pulse = {"stimulus": kind, "freq_hz": freq,
                  "level_db": float(tr.get("level_db", st["level_db"])),
                  "rise_ms": float(st["rise_ms"]), "plateau_ms": float(st["plateau_ms"]),
                  "fall_ms": float(st["fall_ms"]), "onset_s": t}
@@ -395,8 +409,12 @@ def stimuli_used(protocol):
         return [dict(protocol["pulse"], level_db=float(lv)) for lv in protocol["levels_db"]]
     if protocol["type"] == "list":
         st = protocol["startle"]
-        return [dict(st, freq_hz=float(t["freq_hz"]), level_db=float(t.get("level_db", st["level_db"])))
-                for t in protocol["trials"]]
+        out = []
+        for t in protocol["trials"]:
+            kind, freq = list_line_stimulus(st, t)
+            out.append(dict(st, stimulus=kind, freq_hz=freq,
+                            level_db=float(t.get("level_db", st["level_db"]))))
+        return out
     out = [dict(protocol["pulse"])]
     bg = protocol.get("background_noise_db") or 0.0
     for lv in protocol["prepulse"]["levels_above_bg_db"]:

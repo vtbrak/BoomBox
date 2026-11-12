@@ -28,6 +28,32 @@ MONO_FONT = "Consolas" if IS_WINDOWS else "Menlo"
 VOLUME_LABEL = sysutil.VOLUME_LABEL
 NAME_PART_RE = re.compile(r"[A-Za-z0-9-]+")   # arena / camera label rule from the metadata standard
 HIGH_TONE_HZ = 12000   # the lab speaker can blow out above 100 dB at these frequencies
+
+
+def parse_list_line(line):
+    """One line of a list protocol: 'time (s), kHz[, dB]', with 'noise' in place of
+    the kHz for white noise. Raises ValueError or IndexError if it can't be read."""
+    parts = [x for x in line.replace("\t", ",").replace(" ", ",").split(",") if x]
+    if not 2 <= len(parts) <= 3:
+        raise ValueError(line)
+    trial = {"time_s": float(parts[0])}
+    if parts[1].lower() == "noise":
+        trial["stimulus"] = "noise"
+    else:
+        trial["freq_hz"] = float(parts[1]) * 1000
+    if len(parts) > 2:
+        trial["level_db"] = float(parts[2])
+    return trial
+
+
+def _list_line_text(t):
+    what = "noise" if t.get("stimulus") == "noise" else f"{t['freq_hz'] / 1000:g}"
+    return f"{t['time_s']:g}, {what}" + (f", {t['level_db']:g}" if "level_db" in t else "")
+
+
+def _gen_item(x):
+    x = x.strip()
+    return "noise" if x.lower() == "noise" else float(x)
 PREVIEW_W, PREVIEW_H = 640, 360
 PREVIEW_MIN_W = 240
 LEFT_MIN_W = 480
@@ -1012,15 +1038,15 @@ class App:
         self._field(g, 3, 2, "Noise off at (s, blank = stays on)", ("background_noise_off_s",),
                     p.get("background_noise_off_s"), kind="opt_float")
 
-        tf = ttk.LabelFrame(e, text="Tones, one per line: time (s), kHz[, dB]", padding=6)
+        tf = ttk.LabelFrame(e, text="Stimuli, one per line: time (s), kHz or noise[, dB]", padding=6)
         tf.grid(row=0, column=1, rowspan=2, sticky="nw", padx=10)
-        ttk.Label(tf, text="dB is optional; without it the level above is used.",
-                  foreground="#555").pack(anchor="w")
+        ttk.Label(tf, text="For white noise, write noise in place of the kHz,\n"
+                           "e.g. 300, noise, 110. dB is optional; without it\n"
+                           "the level above is used.",
+                  foreground="#555", justify="left").pack(anchor="w")
         self.trials_text = tk.Text(tf, width=26, height=12, font=(MONO_FONT, 11))
         self.trials_text.pack()
-        self.trials_text.insert("end", "\n".join(
-            f"{t['time_s']:g}, {t['freq_hz'] / 1000:g}" + (f", {t['level_db']:g}" if "level_db" in t else "")
-            for t in p["trials"]))
+        self.trials_text.insert("end", "\n".join(_list_line_text(t) for t in p["trials"]))
 
         gen = ttk.LabelFrame(e, text="Generate tone list", padding=6)
         gen.grid(row=1, column=0, sticky="nw", pady=6)
@@ -1028,7 +1054,7 @@ class App:
         for i, (key, label, default) in enumerate([
                 ("first", "First tone (s)", str(protocols.HABITUATION_S)), ("n", "Number of tones", "15"),
                 ("isi_min", "Gap min (s)", "15"), ("isi_max", "Gap max (s)", "45"),
-                ("freqs", "Frequencies (kHz)", "4, 8, 12, 16, 20")]):
+                ("freqs", "Frequencies (kHz or noise)", "4, 8, 12, 16, 20")]):
             ttk.Label(gen, text=label).grid(row=i // 2, column=(i % 2) * 2, sticky="w", padx=4)
             v = tk.StringVar(value=default)
             ttk.Entry(gen, textvariable=v, width=16 if key == "freqs" else 7).grid(
@@ -1170,17 +1196,12 @@ class App:
                 line = line.strip()
                 if not line or line.startswith("#"):
                     continue
-                parts = [x for x in line.replace("\t", ",").replace(" ", ",").split(",") if x]
                 try:
-                    trial = {"time_s": float(parts[0]), "freq_hz": float(parts[1]) * 1000}
-                    if len(parts) > 2:
-                        trial["level_db"] = float(parts[2])
-                    if len(parts) > 3:
-                        raise ValueError
+                    trials.append(parse_list_line(line))
                 except (ValueError, IndexError):
-                    raise ValueError(f"Tone list line {n} should be 'time (s), kHz' or "
-                                     f"'time (s), kHz, dB': {line}")
-                trials.append(trial)
+                    raise ValueError(f"Stimulus list line {n} should be 'time (s), kHz' or "
+                                     f"'time (s), kHz, dB', with noise in place of the kHz "
+                                     f"for white noise: {line}")
             p["trials"] = trials
         return p
 
@@ -1189,7 +1210,7 @@ class App:
             g = {k: v.get() for k, v in self.gen_vars.items()}
             first, n = float(g["first"]), int(g["n"])
             lo, hi = float(g["isi_min"]), float(g["isi_max"])
-            freqs = [float(x) for x in g["freqs"].split(",") if x.strip()]
+            freqs = [_gen_item(x) for x in g["freqs"].split(",") if x.strip()]
             if n < 1 or not freqs or lo <= 0 or hi < lo:
                 raise ValueError
         except ValueError:
@@ -1203,7 +1224,7 @@ class App:
             seq = [freqs[i % len(freqs)] for i in range(n)]
         t, lines = first, []
         for f in seq:
-            lines.append(f"{round(t, 3):g}, {f:g}")
+            lines.append(f"{round(t, 3):g}, {f if f == 'noise' else format(f, 'g')}")
             t += rng.uniform(lo, hi)
         self.trials_text.delete("1.0", "end")
         self.trials_text.insert("end", "\n".join(lines))

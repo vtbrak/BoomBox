@@ -1,7 +1,7 @@
 # Boom Box data for Track Tamer
 
 What Boom Box saves beside each video, and how to read it. This describes
-**Boom Box 1.3.7**, writing **schema 1** of the Track Tamer video metadata
+**Boom Box 1.3.8**, writing **schema 1** of the Track Tamer video metadata
 standard (draft). It adds Boom Box's specifics to that standard and doesn't
 replace it.
 
@@ -76,7 +76,7 @@ left as `_video.mp4`. Track Tamer can skip such folders. (Since Boom Box 1.3.2.)
 | Field | How Boom Box fills it |
 |---|---|
 | `schema_version` | `1` |
-| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.7` |
+| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.8` |
 | `date`, `start_time` | The computer's clock at video frame 0 |
 | `assay` | Always `Acoustic Startle Response` |
 | `assay_variant` | Set per protocol: `Prepulse Inhibition`, `Startle Habituation`, or left out for plain startle |

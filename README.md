@@ -130,8 +130,10 @@ session (in the info file and the event log).
 
 Other protocols:
 - **New list**: any times and frequencies, typed in or generated (fixed or random gaps). Each line is
-  `time (s), kHz`, with an optional third value for that tone's dB. *Noise off at* turns the
-  background noise off at a set time.
+  `time (s), kHz`, with an optional third value for that stimulus's dB. For a **white-noise burst**
+  instead of a tone, write `noise` in place of the kHz (e.g. `300, noise, 110`); one list can mix
+  tones and noise, and the generator's *Frequencies* box accepts `noise` too. Noise uses the white
+  noise calibration. *Noise off at* turns the background noise off at a set time.
 - **PPI**: pulse and prepulse stimuli, prepulse levels above background, lead intervals, trial counts,
   pulse-alone blocks, random inter-trial intervals. *Preview schedule* shows the exact trial list.
 
