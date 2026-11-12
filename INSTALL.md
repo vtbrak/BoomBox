@@ -94,19 +94,32 @@ Starting from scratch? Follow the full steps below.
 | **The camera isn't in the list** | Plug it in, then click **Refresh list** on the Camera tab. |
 
 ## Installing a newer version later
-- Download and unzip the new version as in Step 3.
-- **Before deleting the old BoomBox folder,** copy two folders from it into the new one:
-  - **app/config** into the new **app** folder. It holds everything you set up: settings,
-    calibration, camera settings, experimenter names and your own protocols.
-  - **Data** into the new main folder: your recorded sessions (unless you save them somewhere else).
-- **Updating from a version before 1.3.7:** your own protocols were in **app/protocols**, not
-  app/config. Also copy that folder into the new **app** folder, and choose **Keep both** or **Skip**
-  if asked about files that already exist. Boom Box moves your protocols into app/config by itself.
-- **Updating from a version before 1.3.3:** **config** was in the main folder. Copy it into the new
-  main folder; Boom Box moves it into **app** by itself the first time it starts.
-- When Boom Box starts, check the data folder shown on the **Session** tab. If the saved folder is in
-  the old BoomBox folder, or can't be found, Boom Box offers to use the new folder's **Data** instead.
-- Run **Install_BoomBox.command** again (Step 4) in case anything the program needs has changed.
+1. Download and unzip the new version as in Step 3. Keep the old BoomBox folder for now.
+2. **Bring your settings across** (calibration, camera settings, experimenter names, your own protocols):
+   - Open the **old** BoomBox folder, then its **app** folder, and find the **config** folder.
+   - In a second Finder window, open the **new** BoomBox folder's **app** folder.
+   - Drag **config** from the old **app** folder into the new **app** folder. Drag the whole
+     folder, not the files inside it.
+3. **Bring your recordings across:** drag **Data** from the old main BoomBox folder into the new
+   main folder (skip this if you save recordings somewhere else).
+4. Run **Install_BoomBox.command** again (Step 4) in case anything the program needs has changed.
+5. Start Boom Box and check the data folder shown on the **Session** tab. If the saved folder is in
+   the old BoomBox folder, or can't be found, Boom Box offers to use the new folder's **Data** instead.
+6. Once everything looks right, you can delete the old BoomBox folder.
+
+Good to know:
+- **Move or copy:** on the same drive, dragging *moves* a folder, so the old copy no longer has it.
+  That's fine if you'll delete the old version. To copy instead, hold **Option** while dragging.
+- **"Replace?" message:** a freshly downloaded version has no **config** folder, so normally nothing
+  is asked. If you opened the new version before copying, it made its own **config** with default
+  settings; choose **Replace**.
+- **Updating from 1.3.6 or older:** your own protocols were in **app/protocols**, not in config. Also
+  drag the old **app/protocols** folder into the new **app** folder and choose **Replace**. That's
+  safe: Boom Box rewrites its built-in protocols at startup and moves yours into **app/config**.
+- **Updating from 1.3.2 or older:** **config** was in the main BoomBox folder, not in **app**. Drag it
+  into the new *main* folder; Boom Box moves it into **app** by itself the first time it starts.
+- **On Windows:** copy and paste the same folders in File Explorer, and choose **Replace the files in
+  the destination** if asked. Then run **Install_BoomBox.bat** again.
 
 ---
 
