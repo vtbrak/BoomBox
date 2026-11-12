@@ -564,8 +564,28 @@ class App:
         row("Encoder speed", ttk.Combobox(f, textvariable=self.var_preset, state="readonly", width=10,
                                           values=["ultrafast", "superfast", "veryfast", "faster", "fast", "medium"]))
 
+        ttk.Label(f, text="Camera timing", style="Header.TLabel").grid(row=r, column=0, sticky="w", pady=(12, 0)); r += 1
+        row("Measure the camera latency with claps (needs the microphone)",
+            ttk.Button(f, text="Clap test...", command=self.open_clap_test))
+
         ttk.Button(f, text="Save settings and restart audio", command=self.apply_settings).grid(
             row=r, column=0, columnspan=2, sticky="w", pady=14)
+
+    def open_clap_test(self):
+        if self.busy():
+            messagebox.showwarning("Clap test", "Can't run the clap test during a session.")
+            return
+        from .clap_window import ClapWindow
+        ClapWindow(self)
+
+    def set_camera_latency(self, ms):
+        """Use a measured latency from now on (no camera restart needed) and save it."""
+        self.var_latency.set(f"{ms:g}")
+        self.settings["camera_latency_ms"] = float(ms)
+        self.save_settings()
+        if self.camera is not None:
+            self.camera.latency_s = float(ms) / 1000.0
+        self.log(f"Camera latency set to {ms:g} ms (clap test).")
 
     # =====================================================================
     # Logging / helpers

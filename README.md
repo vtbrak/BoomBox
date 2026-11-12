@@ -94,7 +94,10 @@ mode). Boom Box repeated frames to keep the MP4 at 30 fps, so those recordings s
 repeated frames out of every three. Each repeat is marked in the `_frames.csv`.
 
 *Camera latency (ms)* is subtracted from each frame's arrival time. Leave it at 0 unless you
-measure it (for example, film an LED that the program flashes or a hand clap the mic records).
+measure it. To measure it, use **Clap test...** on the Settings tab (it needs the microphone):
+press Record, clap about 8 times in view of the camera and close to the microphone, then for each
+clap step to the first picture where your hands touch. The window averages the claps and
+**Use this latency** saves the value. Measure at the resolution and frame rate you record with.
 
 ## Protocols (Protocol tab)
 

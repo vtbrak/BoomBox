@@ -1,4 +1,4 @@
-# Exact versions the tests pass with (Mac, Boom Box 1.3.4). Install_BoomBox updates an
+# Exact versions the tests pass with (Mac, Boom Box 1.3.6). Install_BoomBox updates an
 # existing environment to these in place. Change a version only after testing it.
 name: boombox
 channels:
