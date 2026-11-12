@@ -1,9 +1,11 @@
+import re
+import subprocess
 import time
 import unittest
 
 import numpy as np
 
-from boombox.camera import VideoRecorder
+from boombox.camera import VideoRecorder, ffmpeg_path
 from tests.helpers import FPS, H, W, TempDir
 
 
@@ -26,6 +28,20 @@ class RecorderTests(unittest.TestCase):
         self.assertEqual((rec.gaps[0]["frame"], rec.gaps[0]["missing"]), (3, 3))
         self.assertAlmostEqual(rec.gaps[0]["time_s"], 6 * period)
 
+    def test_a_repeat_carries_the_time_of_the_picture_it_copies(self):
+        # The last real frame arrived late in its slot, so the next slot's time falls
+        # before it. Times must never go backwards.
+        with TempDir() as d:
+            rec = VideoRecorder(d / "v.mp4", W, H, FPS)
+            period = 1.0 / FPS
+            for t in (0, 1, 2.45, 5):          # frame 2 late; frames for slots 3-4 missing
+                rec.push(frame(int(t)), 100 + t * period)
+            rec.close()
+        self.assertEqual(rec.duplicated, [0, 0, 0, 1, 1, 0])
+        self.assertEqual(rec.frame_times[3], rec.frame_times[2])
+        self.assertEqual(rec.frame_times[4], rec.frame_times[2])
+        self.assertTrue(all(b >= a for a, b in zip(rec.frame_times, rec.frame_times[1:])))
+
     def test_frame_at_finds_the_frame_on_screen(self):
         with TempDir() as d:
             rec = VideoRecorder(d / "v.mp4", W, H, FPS)
@@ -36,6 +52,25 @@ class RecorderTests(unittest.TestCase):
         self.assertEqual(rec.frame_at(10.0), 0)
         self.assertEqual(rec.frame_at(10.0 + 2.5 / FPS), 2)
         self.assertEqual(rec.frame_at(99.0), 9)
+
+    def test_video_has_no_keyframe_bursts(self):
+        # Intra-refresh: after the first frame there are no complete keyframes (x264 would
+        # otherwise write one every 250 frames, each showing up as a burst of movement).
+        rng = np.random.default_rng(1)
+        base = rng.integers(60, 200, (H, W), dtype=np.uint8)
+        with TempDir() as d:
+            rec = VideoRecorder(d / "v.mp4", W, H, FPS)
+            for i in range(300):
+                grain = rng.integers(-3, 4, (H, W))
+                rec.push(np.clip(base + grain, 0, 255).astype(np.uint8), 1.0 + i / FPS)
+            rc, err = rec.close()
+            self.assertEqual(rc, 0, err)
+            out = subprocess.run([ffmpeg_path(), "-hide_banner", "-i", str(d / "v.mp4"),
+                                  "-vf", "showinfo", "-f", "null", "-"],
+                                 capture_output=True, text=True).stderr
+        types = re.findall(r"type:([IPB])", out)
+        self.assertEqual(len(types), 300)
+        self.assertEqual(types.count("I"), 1)
 
     def test_frames_pushed_after_close_are_ignored(self):
         # The camera thread can hand over one last frame just as the session closes the

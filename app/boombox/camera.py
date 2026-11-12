@@ -404,6 +404,14 @@ class CVCamera:
             cap.release()
 
 
+# x264 normally writes a complete picture (keyframe) every 250 frames and, between them,
+# reuses still parts of the picture. That freezes the camera's faint grain, which then
+# reappears all at once at each keyframe and reads as a burst of movement. Intra-refresh
+# renews the picture a column at a time instead, so no frame stands out. Seeking still lands
+# on the right frame (each refresh cycle is marked as a recovery point).
+X264_PARAMS = "intra-refresh=1"
+
+
 class VideoRecorder:
     """Encodes pushed frames to H.264 MP4 at a constant frame rate locked to the wall clock."""
 
@@ -427,7 +435,7 @@ class VideoRecorder:
                "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{width}x{height}",
                "-r", str(fps), "-i", "pipe:0",
                "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
-               "-pix_fmt", "yuv420p", "-movflags", "+faststart", self.path]
+               "-x264-params", X264_PARAMS, "-pix_fmt", "yuv420p", "-movflags", "+faststart", self.path]
         self._proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, **_NO_WINDOW)
         self._thread = threading.Thread(target=self._writer, daemon=True)
         self._thread.start()
@@ -456,9 +464,11 @@ class VideoRecorder:
             return
         err = (t - self.t0) / self.period - self._next_slot
         if err > 1.5:
-            missing = 0
+            # A repeat is a copy of the last picture, so it carries that picture's time
+            # (its slot time could fall before the picture it copies).
+            missing, last_t = 0, self.frame_times[-1]
             while err > 0.5:
-                self._write(self._last, self.t0 + self._next_slot * self.period, 1)
+                self._write(self._last, last_t, 1)
                 err -= 1
                 missing += 1
             self.gaps.append({"frame": self._next_slot - missing,

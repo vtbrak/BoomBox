@@ -186,4 +186,10 @@ sound left the computer; `pulse_mic_frame` is the frame when the microphone hear
   schedule; `late_ms` reports any delay).
 - If the camera drops frames, the previous frame is repeated so the MP4 stays at a constant rate in
   step with real time, and each repeat is logged.
+- On a Mac, a camera that runs slightly faster than its set rate loses about one frame in 100: macOS
+  discards the extra frames before Boom Box receives them. The lab camera does this (its 30 fps is
+  really 30.3). These show up as double-length gaps in `_frames.csv`.
+- The video is compressed with x264 intra-refresh, so there's no keyframe every 250 frames. Before
+  1.3.9 each keyframe showed up as a burst of camera grain that motion tracking could read as
+  movement.
 - At 30 fps a frame lasts 33 ms, longer than the 10 ms tone; use 60/90 fps for finer timing.

@@ -1774,7 +1774,10 @@ class App:
             self.btn_noise.configure(text="Stop background noise" if self.engine.noise_target > 0
                                      else "Start background noise")
         self._status_ticks = getattr(self, "_status_ticks", 0) + 1
-        if self._status_ticks % 25 == 1:
+        # Not during a session: on the Mac, reading the volume starts a separate program, and
+        # that holds up the camera thread long enough to make frame times up to ~20 ms late.
+        # The volume is checked before the session starts and recorded when it ends.
+        if self._status_ticks % 25 == 1 and not self.busy():
             vol, muted = sysutil.output_volume()
             sv[VOLUME_LABEL].set("MUTED" if muted else f"{vol}")
         self.root.after(200, self._tick_status)

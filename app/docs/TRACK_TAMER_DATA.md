@@ -1,7 +1,7 @@
 # Boom Box data for Track Tamer
 
 What Boom Box saves beside each video, and how to read it. This describes
-**Boom Box 1.3.8**, writing **schema 1** of the Track Tamer video metadata
+**Boom Box 1.3.9**, writing **schema 1** of the Track Tamer video metadata
 standard (draft). It adds Boom Box's specifics to that standard and doesn't
 replace it.
 
@@ -76,7 +76,7 @@ left as `_video.mp4`. Track Tamer can skip such folders. (Since Boom Box 1.3.2.)
 | Field | How Boom Box fills it |
 |---|---|
 | `schema_version` | `1` |
-| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.8` |
+| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.9` |
 | `date`, `start_time` | The computer's clock at video frame 0 |
 | `assay` | Always `Acoustic Startle Response` |
 | `assay_variant` | Set per protocol: `Prepulse Inhibition`, `Startle Habituation`, or left out for plain startle |
@@ -108,8 +108,29 @@ left as `_video.mp4`. Track Tamer can skip such folders. (Since Boom Box 1.3.2.)
 **Mac recordings before 1.3.4:** at 1280x720 the camera really ran at 10 fps, so about two of every three frames are repeats (`repeated_frames` is about two-thirds of `frames`). Use only the frames that aren't repeats; times and stimulus frames are still correct.
 
 **`camera_settings`** holds `encoder` (`libx264`), `crf`, `encoder_preset`,
-`pixel_format` (`yuv420p`), `color` (`grayscale`), `width_px`, `height_px`,
-`fps`, `camera_latency_ms`, `controls_locked` and `controls`.
+`encoder_params` (`intra-refresh=1`, from 1.3.9), `pixel_format` (`yuv420p`),
+`color` (`grayscale`), `width_px`, `height_px`, `fps`, `camera_latency_ms`,
+`controls_locked` and `controls`.
+
+**Keyframe bursts in recordings before 1.3.9:** x264 wrote a complete picture
+(keyframe) every 250 frames, at frames 0, 250, 500 and so on. Between keyframes the
+compression freezes the camera's faint grain. Each keyframe brings the grain back
+all at once, so about 1% of pixels change by more than 5 grey levels on those
+frames, against about 0.01% on other frames. That looks like a burst of movement
+in an empty box. A recording has this problem if `encoder_params` is missing. To
+handle it, skip the change into each frame whose number is a multiple of 250, or
+use a higher intensity threshold: the burst is about 0.01% of pixels at 15 grey
+levels.
+
+From 1.3.9 the video uses intra-refresh: the picture is renewed a column at a
+time, so no frame stands out. Seeking still lands on exactly the right frame, but
+it can take longer, up to about 0.3 s. While seeking, the decoder may print
+harmless warnings such as `mmco: unref short failure`.
+
+**The camera's own noise:** on the lab camera about 0.76% of pixels change by
+more than 5 grey levels between frames of an empty, still box. The compression
+smooths most of this away, but a threshold of 5 is close to the camera's noise
+level.
 
 The video is grayscale but stored as `yuv420p`, so a decoder may return three
 identical color channels.
@@ -147,12 +168,22 @@ One row per video frame, in order.
 
 - For a normal frame, the time is when the frame **reached the computer**, minus
   `camera_latency_ms`.
-- For a repeated frame, the time is a calculated slot (frame number ÷ frame
-  rate), not a measurement, and the picture is a copy of the last real frame.
+- A repeated frame is a copy of the last real frame and has the same time (from
+  1.3.9; before that it had a calculated slot time, which could come out a few
+  ms earlier than the frame it copied).
   **Leave repeated frames out of movement and speed peaks.** A repeat shows no
   movement, and the next real frame shows all the movement across the gap.
 - Boom Box keeps the video within about 1.5 frames of real time, so frame number
   ÷ frame rate is close but not exact. `video_time_s` is the record of timing.
+- **Gaps of two frame periods (about 66 ms at 30 fps), about once every 100
+  frames, on Mac.** The lab camera's "30 fps" mode really runs at about 30.3 fps.
+  macOS delivers at most 30 frames a second, so it discards about one frame in
+  100 before Boom Box receives it. Those frames don't exist, and they aren't
+  repeated or marked; the gap in `video_time_s` is real. The camera's 60 fps
+  mode behaves the same way, about 62.3 fps with a frame discarded every 19 or so.
+- Before 1.3.9, about every 5 s a frame's time could be up to about 25 ms late
+  (a gap of 40–60 ms followed by a short one), because of a volume check that
+  briefly held up the camera. That check no longer runs during a session.
 
 ---
 

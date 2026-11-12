@@ -28,7 +28,7 @@ import soundfile as sf
 
 from . import __version__, calibration, sysutil
 from .audio import MicRecorder
-from .camera import _NO_WINDOW, IS_WINDOWS, VideoRecorder, ffmpeg_path
+from .camera import _NO_WINDOW, IS_WINDOWS, X264_PARAMS, VideoRecorder, ffmpeg_path
 from .protocols import ASSAY
 from .stimuli import make_stimulus
 
@@ -501,7 +501,8 @@ class Session:
                         if len(times) > 1 and times[-1] > times[0] else None)
         settings = {
             "encoder": ENCODER, "crf": self.settings["video_crf"],
-            "encoder_preset": self.settings["video_preset"], "pixel_format": "yuv420p",
+            "encoder_preset": self.settings["video_preset"], "encoder_params": X264_PARAMS,
+            "pixel_format": "yuv420p",
             "color": "grayscale", "width_px": cam.width, "height_px": cam.height, "fps": cam.fps,
             "camera_latency_ms": cam.latency_s * 1000,
             "controls_locked": bool(self.settings.get("camera_controls_locked")),
