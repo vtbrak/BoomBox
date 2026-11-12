@@ -35,9 +35,10 @@ class SessionFileTests(unittest.TestCase):
             self.assertEqual(s.state, "done")
             names = sorted(p.name for p in s.folder.iterdir())
             base = s.base
-            for suffix in ("_Side.mp4", "_info.json", "_info.csv", "_Side_frames.csv",
+            for suffix in ("_Side.mp4", "_info.json", "_Side_frames.csv",
                            "_trials.csv", "_events.log"):
                 self.assertIn(base + suffix, names)
+            self.assertNotIn(base + "_info.csv", names)     # replaced by the running log
             info = json.loads((s.folder / f"{base}_info.json").read_text(encoding="utf-8"))
             cam_entry = info["cameras"][0]
             self.assertEqual(cam_entry["frames"], cam_entry["verified_frames_in_file"])
@@ -60,7 +61,7 @@ class SessionFileTests(unittest.TestCase):
                     run_session(s)
                 finally:
                     cam.stop()
-                for p in s.folder.iterdir():
+                for p in [*s.folder.iterdir(), *d.glob("*_log.csv")]:
                     if p.suffix in (".csv", ".log", ".json"):
                         p.read_text(encoding="utf-8")
                 print("OK", s.state)

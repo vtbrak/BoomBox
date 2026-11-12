@@ -1,7 +1,7 @@
 # Boom Box data for Track Tamer
 
 What Boom Box saves beside each video, and how to read it. This describes
-**Boom Box 1.3.4**, writing **schema 1** of the Track Tamer video metadata
+**Boom Box 1.3.5**, writing **schema 1** of the Track Tamer video metadata
 standard (draft). It adds Boom Box's specifics to that standard and doesn't
 replace it.
 
@@ -32,10 +32,17 @@ camera label and `ASR1` is the arena; both are set per rig.
 | `…_ASR1_Side.mp4` | **track this** | The video |
 | `…_ASR1_info.json` | **read this** | Trial information, stimuli, and Boom Box's details |
 | `…_ASR1_Side_frames.csv` | **read this** | Measured time of every frame |
-| `…_ASR1_info.csv` | skip | The JSON's top-level fields as one row, for people. Columns vary, because empty fields are left out |
 | `…_ASR1_trials.csv` | optional | Per-trial detail; the same data as `boom_box.trials` |
 | `…_ASR1_Side_audio.wav` | skip | Microphone recording, aligned to the video. Only there if a mic was selected |
 | `…_ASR1_events.log` | skip | Readable timeline, for people |
+
+Outside the session folders, the data folder holds the **running log**
+`<data folder>_log.csv` (skip): one row per session, with the suite's 24 log
+columns, for people. Boom Box 1.3.4 and earlier wrote a per-session
+`_info.csv` instead; skip that too.
+
+Boom Box writes `_info.json` once, when the session ends, and never reads it back
+or rewrites it, so Track Tamer can add its own `track_tamer` object to it.
 
 Don't work out the start time from the **folder name**. It's set just before
 recording starts and can differ from the file names by a second or so. Use
@@ -58,7 +65,7 @@ left as `_video.mp4`. Track Tamer can skip such folders. (Since Boom Box 1.3.2.)
 - **Missing values:** in the standard fields, an unknown or empty value is left
   out. Inside `boom_box` it may be `""` or `null`.
 - **`sex`** is always written, as `F`, `M` or `U`.
-- **Text encoding:** every text file (`_info.json`, `_info.csv`, `_frames.csv`,
+- **Text encoding:** every text file (`_info.json`, `_frames.csv`,
   `_trials.csv`, `_events.log`) is UTF-8, on Mac and Windows alike. Before 1.3.2,
   Windows wrote the CSV files and the log in its own default encoding.
 
@@ -69,7 +76,7 @@ left as `_video.mp4`. Track Tamer can skip such folders. (Since Boom Box 1.3.2.)
 | Field | How Boom Box fills it |
 |---|---|
 | `schema_version` | `1` |
-| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.4` |
+| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.5` |
 | `date`, `start_time` | The computer's clock at video frame 0 |
 | `assay` | Always `Acoustic Startle Response` |
 | `assay_variant` | Set per protocol: `Prepulse Inhibition`, `Startle Habituation`, or left out for plain startle |

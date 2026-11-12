@@ -4,12 +4,13 @@ Files follow the Track Tamer video metadata standard (schema 1). With
 <base> = <date>_<time>_<arena> (e.g. 2026-11-06_15-30-00_ASR1) and <label> the
 camera label, each session folder <data_dir>/<base>_<AnimalID>/ holds:
   <base>_<label>.mp4         grayscale video with the microphone as its audio track
-  <base>_info.json           trial information (the file Track Tamer reads)
-  <base>_info.csv            the same trial fields as one spreadsheet row
+  <base>_info.json           trial information (the file Track Tamer reads, and adds to)
   <base>_<label>_frames.csv  measured time of every video frame (the record of timing)
   <base>_trials.csv          Boom Box's per-trial detail (times in ms from frame 0)
   <base>_<label>_audio.wav   microphone audio aligned so sample 0 = video frame 0
   <base>_events.log          readable timeline of the session
+and <data_dir>/<data folder name>_log.csv gets one row per session (the running log,
+with the same columns and words as the other apps' logs).
 """
 
 import csv
@@ -32,6 +33,15 @@ from .protocols import ASSAY
 from .stimuli import make_stimulus
 
 SCHEMA_VERSION = 1
+# The running log's columns: the same, in the same order, in every app of the suite.
+LOG_COLUMNS = [
+    "date", "start_time", "assay", "assay_variant", "phase", "arena",
+    "experimenter", "cohort",
+    "animal_id", "sex", "strain", "dob", "treatment", "trial_day", "session_number", "notes",
+    "duration_set_min", "duration_actual_s", "stopped_early",
+    "frames", "repeated_frames", "videos", "encoder", "app_version",
+]
+ENCODER = "libx264"
 APP_KEY = "boom_box"   # Boom Box's own fields live in this object of the info file
 STIMULUS_TYPES = {"startle": "pulse", "pulse_alone": "pulse", "prepulse_pulse": "prepulse+pulse",
                   "prepulse_alone": "prepulse", "no_stim": "none"}
@@ -52,6 +62,51 @@ def _write_atomic(path, text):
     with open(tmp, "w", newline="", encoding="utf-8") as f:
         f.write(text)
     os.replace(tmp, path)
+
+
+def _log_text(rows, header):
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=LOG_COLUMNS, extrasaction="ignore")
+    if header:
+        w.writeheader()
+    w.writerows(rows)
+    return buf.getvalue()
+
+
+def _append_log_rows(path, rows):
+    if path.exists() and path.stat().st_size > 0:
+        # utf-8-sig: still reads the log after Excel re-saved it with a byte-order mark.
+        with open(path, newline="", encoding="utf-8-sig", errors="replace") as f:
+            reader = csv.DictReader(f)
+            # A log with other columns is rewritten once so new rows line up.
+            old = list(reader) if reader.fieldnames != LOG_COLUMNS else None
+        if old is not None:
+            _write_atomic(path, _log_text(old + rows, header=True))
+            return
+        with open(path, "a", newline="", encoding="utf-8") as f:
+            f.write(_log_text(rows, header=False))
+    else:
+        _write_atomic(path, _log_text(rows, header=True))
+
+
+def append_log(path, row):
+    """Add a row to the running log. If the log is open in Excel (Windows locks it),
+    the row waits in <log>_pending.csv and is added next time. False if it had to wait."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pending = path.with_name(path.stem + "_pending.csv")
+    rows = []
+    if pending.exists():
+        with open(pending, newline="", encoding="utf-8-sig", errors="replace") as f:
+            rows = list(csv.DictReader(f))
+    rows.append(row)
+    try:
+        _append_log_rows(path, rows)
+    except PermissionError:
+        _write_atomic(pending, _log_text(rows, header=True))
+        return False
+    pending.unlink(missing_ok=True)
+    return True
 
 
 def _count_video_frames(path):
@@ -261,7 +316,7 @@ class Session:
         if video_ok:      # Track Tamer's file only describes a video that exists
             info = self._info(rows)
             self._write_info_json(info)
-            self._write_info_csv(info)
+            self._add_to_running_log(info)
         self._write_events_log()
         if not video_ok:
             raise RuntimeError(f"Video encoder failed: {err or 'it stopped unexpectedly'}")
@@ -445,7 +500,7 @@ class Session:
         fps_measured = ((len(times) - 1) / (times[-1] - times[0])
                         if len(times) > 1 and times[-1] > times[0] else None)
         settings = {
-            "encoder": "libx264", "crf": self.settings["video_crf"],
+            "encoder": ENCODER, "crf": self.settings["video_crf"],
             "encoder_preset": self.settings["video_preset"], "pixel_format": "yuv420p",
             "color": "grayscale", "width_px": cam.width, "height_px": cam.height, "fps": cam.fps,
             "camera_latency_ms": cam.latency_s * 1000,
@@ -532,15 +587,32 @@ class Session:
         _write_atomic(self.folder / f"{self.base}_info.json",
                       json.dumps(info, indent=2, default=str) + "\n")
 
-    def _write_info_csv(self, info):
-        """The trial fields as one spreadsheet row, for people (Track Tamer reads only the JSON)."""
-        row = {k: v for k, v in info.items() if not isinstance(v, (dict, list))}
-        row["video"] = info["cameras"][0]["video"]
-        buf = io.StringIO()
-        w = csv.DictWriter(buf, fieldnames=list(row.keys()))
-        w.writeheader()
-        w.writerow({k: ("true" if v is True else "false" if v is False else v) for k, v in row.items()})
-        _write_atomic(self.folder / f"{self.base}_info.csv", buf.getvalue())
+    def log_row(self, info):
+        """This session as a running-log row: every column, blank when unknown."""
+        rec = self.recorder
+        row = {k: info.get(k, "") for k in LOG_COLUMNS}
+        row.update({
+            "phase": "",
+            "duration_set_min": f"{self.total_s / 60.0:g}",
+            "duration_actual_s": f"{rec.n_frames / rec.fps:.2f}",
+            "stopped_early": "yes" if self.stopped_early else "no",
+            "frames": rec.n_frames,
+            "repeated_frames": f"{self.camera_label}:{rec.n_duplicated}",
+            "videos": self.video_name,
+            "encoder": ENCODER,
+            "app_version": __version__,
+        })
+        return row
+
+    def _add_to_running_log(self, info):
+        data_dir = Path(self.settings["data_dir"])
+        path = data_dir / f"{data_dir.name}_log.csv"
+        try:
+            if not append_log(path, self.log_row(info)):
+                self.log(f"Running log {path.name} is open in another program; this session "
+                         "will be added to it next time.")
+        except OSError as e:
+            self.log(f"Could not add this session to the running log {path.name}: {e}")
 
     def _write_events_log(self):
         with open(self.folder / f"{self.base}_events.log", "w", encoding="utf-8") as f:

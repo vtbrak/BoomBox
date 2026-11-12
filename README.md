@@ -156,11 +156,17 @@ on the **Settings** tab, using letters, digits and `-` only.
 |---|---|
 | `…_ASR1_Side.mp4` | Grayscale H.264 video with the microphone as its audio track |
 | `…_ASR1_info.json` | **Trial information for Track Tamer:** date, start time, assay (`Acoustic Startle Response`) and variant, arena, room, experimenter, animal details, session length, the camera entry (video name, frame counts, repeated frames, all camera settings) and the `stimuli` list. Boom Box's own details (protocol, schedule, per-trial timing, calibration, audio settings) are inside its `boom_box` section. |
-| `…_ASR1_info.csv` | The same trial fields as one spreadsheet row, for people |
 | `…_ASR1_Side_frames.csv` | Measured time of every video frame: `frame`, `video_time_s`, `repeated` (true for frames repeated because the camera dropped one). This is the record of timing. |
 | `…_ASR1_trials.csv` | Boom Box's detail, one row per trial: scheduled and actual times (ms), video frame, frequency, level, dBFS, calibration status, mic-measured onset and frame |
 | `…_ASR1_Side_audio.wav` | Microphone audio, aligned so sample 0 = video frame 0 (full bandwidth) |
 | `…_ASR1_events.log` | Readable timeline |
+
+The **running log** `Data/Data_log.csv` (named after the data folder) gets one row per session: date,
+animal, experimenter, session length, frames, video name and so on. Every column is always there,
+blank when there's nothing to put in it. The columns, their order and their words (`yes`/`no` for
+`stopped_early`) are the same as in the other lab apps' logs. If the log is open in Excel on Windows,
+the row waits in `Data_log_pending.csv` and is added next time. (Before 1.3.5 each session had an
+`_info.csv` instead.)
 
 Frames are numbered from 0. In the trials file, times are in milliseconds from the start of frame 0;
 in the info and frames files they're in seconds. `pulse_frame` is the frame being exposed when the
