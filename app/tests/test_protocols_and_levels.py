@@ -1,3 +1,4 @@
+import contextlib
 import json
 import unittest
 from unittest import mock
@@ -7,6 +8,14 @@ import numpy as np
 from boombox import calibration, config, gui, protocols, stimuli
 from tests.helpers import TempDir
 
+
+@contextlib.contextmanager
+def protocol_dirs():
+    """Temporary built-in and user protocol folders (the real ones are never touched)."""
+    with TempDir() as d:
+        builtin_dir, user_dir = d / "protocols", d / "config" / "protocols"
+        with mock.patch.multiple(config, PROTOCOL_DIR=builtin_dir, USER_PROTOCOL_DIR=user_dir):
+            yield builtin_dir, user_dir
 
 class ProtocolTests(unittest.TestCase):
     def test_builtin_schedules(self):
@@ -20,22 +29,44 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(len(levels), 36)
 
     def test_save_refuses_a_name_that_would_overwrite_another_protocol(self):
-        # "Hearing_Test" and "Hearing Test" share a file name; saving one must not replace the other.
-        with TempDir() as d, mock.patch.object(config, "PROTOCOL_DIR", d):
+        # "My list" and "My_list" share a file name; saving one must not replace the other.
+        with protocol_dirs() as (builtin_dir, user_dir):
             protocols.ensure_builtin()
-            clash = dict(protocols.DEFAULT_LIST, name="Hearing_Test")
-            with self.assertRaises(ValueError):
-                protocols.save(clash)
-            on_disk = json.loads((d / "Hearing_Test.json").read_text())
-            self.assertEqual(on_disk["name"], protocols.HEARING_NAME)
-            # Saving a protocol again under its own name is still fine.
             mine = dict(protocols.DEFAULT_LIST, name="My list")
             protocols.save(mine)
+            with self.assertRaises(ValueError):
+                protocols.save(dict(protocols.DEFAULT_LIST, name="My_list"))
+            self.assertEqual(json.loads((user_dir / "My_list.json").read_text())["name"], "My list")
+            # Saving a protocol again under its own name is still fine.
             protocols.save(dict(mine, end_padding_s=10.0))
             self.assertEqual(protocols.load("My list")["end_padding_s"], 10.0)
+            # A user protocol can never replace a built-in's file: they're in different folders.
+            protocols.save(dict(protocols.DEFAULT_LIST, name="Hearing_Test"))
+            self.assertEqual(json.loads((builtin_dir / "Hearing_Test.json").read_text())["name"],
+                             protocols.HEARING_NAME)
+
+    def test_user_protocols_live_in_config_and_old_ones_move_there(self):
+        with protocol_dirs() as (builtin_dir, user_dir):
+            builtin_dir.mkdir()
+            # Before 1.3.7 the user's protocols sat next to the built-ins.
+            (builtin_dir / "My_list.json").write_text(json.dumps(dict(protocols.DEFAULT_LIST, name="My list")))
+            (builtin_dir / "PPI_Default.json").write_text(json.dumps(dict(protocols.DEFAULT_PPI, seed=3)))
+            protocols.ensure_builtin()
+            self.assertFalse((builtin_dir / "My_list.json").exists())
+            self.assertFalse((builtin_dir / "PPI_Default.json").exists())
+            self.assertEqual(protocols.load("My list")["name"], "My list")
+            self.assertEqual(protocols.load("PPI Default")["seed"], 3)      # the user's edits kept
+            self.assertTrue((builtin_dir / "Hearing_Test.json").exists())
+            names = protocols.list_protocols()
+            self.assertEqual(names[:4], list(protocols.BUILTINS))
+            self.assertIn("My list", names)
+            protocols.save(dict(protocols.DEFAULT_LIST, name="Another"))
+            self.assertTrue((user_dir / "Another.json").exists())
+            protocols.delete("Another")
+            self.assertFalse((user_dir / "Another.json").exists())
 
     def test_new_protocol_with_an_existing_name_doesnt_replace_it(self):
-        with TempDir() as d, mock.patch.object(config, "PROTOCOL_DIR", d), \
+        with protocol_dirs() as (_, d), \
                 mock.patch.object(gui.simpledialog, "askstring", return_value="PPI Default"), \
                 mock.patch.object(gui.messagebox, "showerror") as shown:
             protocols.ensure_builtin()
@@ -70,7 +101,8 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(widths, {40.0})
 
     def test_builtin_files_are_refreshed_to_this_version(self):
-        with TempDir() as d, mock.patch.object(config, "PROTOCOL_DIR", d):
+        with protocol_dirs() as (d, _):
+            d.mkdir()
             (d / "Hearing_Test.json").write_text(json.dumps(dict(protocols.BUILTINS[protocols.HEARING_NAME],
                                                                  end_padding_s=99)))
             protocols.ensure_builtin()

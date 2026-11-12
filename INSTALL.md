@@ -96,10 +96,16 @@ Starting from scratch? Follow the full steps below.
 ## Installing a newer version later
 - Download and unzip the new version as in Step 3.
 - **Before deleting the old BoomBox folder,** copy two folders from it into the new one:
-  - **app/config** into the new **app** folder: your calibration, camera settings and experimenter names.
-    (Versions before 1.3.3 kept **config** in the main folder. Copy it into the new main folder;
-    Boom Box moves it into **app** by itself the first time it starts.)
+  - **app/config** into the new **app** folder. It holds everything you set up: settings,
+    calibration, camera settings, experimenter names and your own protocols.
   - **Data** into the new main folder: your recorded sessions (unless you save them somewhere else).
+- **Updating from a version before 1.3.7:** your own protocols were in **app/protocols**, not
+  app/config. Also copy that folder into the new **app** folder, and choose **Keep both** or **Skip**
+  if asked about files that already exist. Boom Box moves your protocols into app/config by itself.
+- **Updating from a version before 1.3.3:** **config** was in the main folder. Copy it into the new
+  main folder; Boom Box moves it into **app** by itself the first time it starts.
+- When Boom Box starts, check the data folder shown on the **Session** tab. If the saved folder is in
+  the old BoomBox folder, or can't be found, Boom Box offers to use the new folder's **Data** instead.
 - Run **Install_BoomBox.command** again (Step 4) in case anything the program needs has changed.
 
 ---

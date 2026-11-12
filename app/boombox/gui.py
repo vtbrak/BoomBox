@@ -9,6 +9,7 @@ import threading
 import time
 import tkinter as tk
 import traceback
+from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from tkinter.scrolledtext import ScrolledText
 
@@ -165,6 +166,7 @@ class App:
         self.root.after(200, self.start_camera)
         self.root.after(40, self._tick_preview)
         self.root.after(200, self._tick_status)
+        self.root.after(600, self.check_data_dir)
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
     # =====================================================================
@@ -1470,6 +1472,22 @@ class App:
             self.settings["data_dir"] = d
             self.save_settings()
 
+    def check_data_dir(self):
+        """At startup: offer this folder's Data if the saved data folder looks wrong."""
+        problem = config.data_dir_problem(self.settings["data_dir"])
+        if not problem:
+            return
+        default = str(config.DEFAULT_DATA_DIR)
+        self.log("DATA FOLDER: " + problem.replace("\n\n", " ").replace("\n", " "))
+        if messagebox.askyesno("Data folder", f"{problem}\n\nSave recordings in this Boom Box "
+                               f"folder's Data folder instead?\n{default}\n\n(Choose No to keep it, "
+                               "for example if it's on a drive you'll plug in. You can change it any "
+                               "time on the Session tab.)"):
+            self.var_data_dir.set(default)
+            self.settings["data_dir"] = default
+            self.save_settings()
+            self.log(f"Data folder set to {default}")
+
     def preflight(self):
         """(errors, warnings, protocol, trials, total_s)."""
         errors, warnings = [], []
@@ -1531,7 +1549,11 @@ class App:
             warnings.append("Camera settings are not locked (Camera tab).")
         if not self.settings.get("mic_device"):
             warnings.append("No microphone selected: there will be no audio check track.")
-        free = sysutil.free_gb(self.settings["data_dir"]) if self.settings["data_dir"] else None
+        data_dir = Path(self.settings["data_dir"])
+        if data_dir != config.DEFAULT_DATA_DIR and not data_dir.is_dir():
+            errors.append(f"The data folder can't be found: {data_dir}. Connect its drive, or "
+                          "choose another folder on the Session tab.")
+        free = sysutil.free_gb(str(data_dir)) if data_dir.is_dir() else None
         if free is not None and free < 5:
             warnings.append(f"Only {free:.1f} GB free disk space.")
         where = ("Settings > System > Notifications" if IS_WINDOWS else "Control Center > Focus")

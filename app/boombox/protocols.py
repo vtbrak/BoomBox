@@ -146,7 +146,29 @@ def is_builtin(name):
     return name in BUILTINS
 
 
+def migrate_user_protocols():
+    """Move the user's own protocols out of app/protocols (before 1.3.7 they were kept there,
+    next to the built-ins) into app/config/protocols, so they're copied with the settings."""
+    dest_dir = config.USER_PROTOCOL_DIR
+    for p in sorted(config.PROTOCOL_DIR.glob("*.json")):
+        data = config.load_json(p, None)
+        if not isinstance(data, dict) or data.get("builtin") or data.get("name") in BUILTINS:
+            continue
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / p.name
+        if dest.exists():
+            if config.load_json(dest, None) == data:
+                p.unlink()
+                continue
+            n = 2
+            while (dest_dir / f"{p.stem}_{n}.json").exists():
+                n += 1
+            dest = dest_dir / f"{p.stem}_{n}.json"
+        p.replace(dest)
+
+
 def ensure_builtin():
+    migrate_user_protocols()
     # Built-ins are locked and defined here, so keep their files identical to this version.
     for name, proto in BUILTINS.items():
         path = config.PROTOCOL_DIR / _filename(name)
@@ -159,7 +181,8 @@ def ensure_builtin():
                 path.unlink()
         except (FileNotFoundError, json.JSONDecodeError):
             pass
-    ppi = config.PROTOCOL_DIR / _filename(DEFAULT_PPI["name"])
+    # The default PPI protocol is the user's to edit, so it's kept with their protocols.
+    ppi = config.USER_PROTOCOL_DIR / _filename(DEFAULT_PPI["name"])
     if not ppi.exists():
         config.save_json(ppi, DEFAULT_PPI)
 
@@ -168,28 +191,35 @@ def restore_builtin(name):
     config.save_json(config.PROTOCOL_DIR / _filename(name), BUILTINS[name])
 
 
-def list_protocols():
-    names = []
-    for p in sorted(config.PROTOCOL_DIR.glob("*.json")):
+def _user_files():
+    """(path, protocol) for each of the user's own protocols."""
+    out = []
+    for p in sorted(config.USER_PROTOCOL_DIR.glob("*.json")):
         try:
-            names.append(json.loads(p.read_text(encoding="utf-8"))["name"])
+            data = json.loads(p.read_text(encoding="utf-8"))
         except Exception:
             continue
+        if isinstance(data, dict) and data.get("name") and data["name"] not in BUILTINS:
+            out.append((p, data))
+    return out
+
+
+def list_protocols():
+    names = list(BUILTINS)
+    for _, data in _user_files():
+        if data["name"] not in names:
+            names.append(data["name"])
     order = list(BUILTINS)
     names.sort(key=lambda n: (order.index(n) if n in order else len(order), n.lower()))
     return names
 
 
 def load(name):
-    for p in config.PROTOCOL_DIR.glob("*.json"):
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        if data.get("name") == name:
-            return data
     if name in BUILTINS:
         return copy.deepcopy(BUILTINS[name])
+    for _, data in _user_files():
+        if data["name"] == name:
+            return data
     raise KeyError(name)
 
 
@@ -197,7 +227,7 @@ def save(protocol):
     name = protocol.get("name")
     if is_builtin(name):
         raise ValueError(f"The built-in '{name}' protocol can't be overwritten. Use Save As.")
-    path = config.PROTOCOL_DIR / _filename(name)
+    path = config.USER_PROTOCOL_DIR / _filename(name)
     # Different names can share a file name ("Hearing Test" / "Hearing_Test"); never replace
     # another protocol's file that way.
     existing = config.load_json(path, {}).get("name") if path.exists() else None
@@ -212,7 +242,9 @@ def save(protocol):
 def delete(name):
     if is_builtin(name):
         raise ValueError(f"The built-in '{name}' protocol can't be deleted.")
-    (config.PROTOCOL_DIR / _filename(name)).unlink(missing_ok=True)
+    for p, data in _user_files():
+        if data["name"] == name:
+            p.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------

@@ -14,7 +14,7 @@ check sync. Every stimulus is logged with the video frame it occurred in.
 | `Install_BoomBox.command` / `Install_BoomBox.bat` | Install Boom Box, or update it after downloading a new version (Mac / Windows) |
 | `README.md`, `INSTALL.md` | This file and the install guide |
 | `Data` | Your recordings (appears after the first session) |
-| `app` | The program itself: code, protocols, your settings and calibration (`app/config`), tests, and the Track Tamer data guide (`app/docs`). You don't need to open it |
+| `app` | The program itself: code, built-in protocols, tests and the Track Tamer data guide (`app/docs`). Everything you set up (settings, calibration, experimenter names, your own protocols) is in `app/config`, the one folder to copy when updating. You don't need to open it |
 
 ## Installing
 

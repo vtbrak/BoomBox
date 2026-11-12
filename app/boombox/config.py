@@ -2,6 +2,11 @@
 
 The main Boom Box folder holds only what a user opens (start and install files,
 README, INSTALL, Data); the program, protocols and settings live in its app/ folder.
+
+Everything the user sets up (settings, calibration, their own protocols) is in
+app/config, so copying that one folder carries it to a new version. The data
+folder is saved relative to the main folder when it's inside it, so it moves
+with the program instead of pointing back at an old copy.
 """
 
 import copy
@@ -14,7 +19,8 @@ from pathlib import Path
 APP_DIR = Path(__file__).resolve().parent.parent      # .../Boom Box/app
 MAIN_DIR = APP_DIR.parent                             # .../Boom Box
 CONFIG_DIR = APP_DIR / "config"
-PROTOCOL_DIR = APP_DIR / "protocols"
+PROTOCOL_DIR = APP_DIR / "protocols"                  # built-in protocols (rewritten by the program)
+USER_PROTOCOL_DIR = CONFIG_DIR / "protocols"          # the user's own protocols
 DEFAULT_DATA_DIR = MAIN_DIR / "Data"
 # Before Boom Box 1.3.3 these sat in the main folder.
 OLD_CONFIG_DIR = MAIN_DIR / "config"
@@ -82,14 +88,14 @@ def migrate_old_layout():
         for f in OLD_PROTOCOL_DIR.glob("*.json"):
             if load_json(f, {}).get("builtin"):
                 f.unlink()
-    for old, new in ((OLD_CONFIG_DIR, CONFIG_DIR), (OLD_PROTOCOL_DIR, PROTOCOL_DIR)):
+    for old, new in ((OLD_CONFIG_DIR, CONFIG_DIR), (OLD_PROTOCOL_DIR, USER_PROTOCOL_DIR)):
         if old.is_dir():
             _merge_into(old, new)
 
 
 def ensure_dirs():
     migrate_old_layout()
-    for d in (CONFIG_DIR, PROTOCOL_DIR, CALIBRATION_HISTORY_DIR):
+    for d in (CONFIG_DIR, PROTOCOL_DIR, USER_PROTOCOL_DIR, CALIBRATION_HISTORY_DIR):
         d.mkdir(parents=True, exist_ok=True)
 
 
@@ -110,11 +116,57 @@ def save_json(path, data):
     os.replace(tmp, path)
 
 
+def resolve_data_dir(value):
+    """The data folder as a full path (a saved relative path is inside the main folder)."""
+    if not value:
+        return str(DEFAULT_DATA_DIR)
+    p = Path(value)
+    return str(p if p.is_absolute() else MAIN_DIR / p)
+
+
+def portable_data_dir(value):
+    """The data folder as saved: relative when it's inside the main folder (e.g. "Data")."""
+    p = Path(value)
+    for base in (MAIN_DIR, MAIN_DIR.resolve()):
+        for path in (p, p.resolve()):
+            try:
+                rel = path.relative_to(base)
+            except ValueError:
+                continue
+            return rel.as_posix() if rel.parts else "."
+    return str(p)
+
+
+def _is_boom_box_folder(path):
+    return (Path(path) / "app" / "boombox").is_dir()
+
+
+def data_dir_problem(value):
+    """Why the saved data folder should be checked before recording, or None.
+
+    Two cases come from installing a new version and copying the old settings: the
+    folder was in the old copy, which has been deleted, or it still points into the
+    old copy, so new sessions would quietly be saved there.
+    """
+    p = Path(resolve_data_dir(value))
+    if p == DEFAULT_DATA_DIR:
+        return None
+    if not p.is_dir():
+        return (f"The data folder can't be found:\n{p}\n\nIt may have been in an older Boom Box "
+                "folder that was deleted, or on a drive that isn't connected.")
+    if _is_boom_box_folder(p.parent) and p.parent.resolve() != MAIN_DIR.resolve():
+        return (f"The data folder is inside another Boom Box folder:\n{p}\n\nThis usually means "
+                "the settings were copied from an older version.")
+    return None
+
+
 def load_settings():
     settings = copy.deepcopy(DEFAULT_SETTINGS)
     settings.update(load_json(SETTINGS_PATH, {}))
+    settings["data_dir"] = resolve_data_dir(settings.get("data_dir"))
     return settings
 
 
 def save_settings(settings):
-    save_json(SETTINGS_PATH, settings)
+    data = dict(settings, data_dir=portable_data_dir(resolve_data_dir(settings.get("data_dir"))))
+    save_json(SETTINGS_PATH, data)
