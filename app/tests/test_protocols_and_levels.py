@@ -25,8 +25,8 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(len(hab), 100)
         hearing, _ = protocols.build_schedule(protocols.BUILTINS[protocols.HEARING_NAME])
         levels = [t["pulse"]["level_db"] for t in hearing]
-        self.assertEqual(levels[:10], [40, 50, 60, 70, 80, 90, 100, 110, 120, 120])
-        self.assertEqual(len(levels), 36)
+        self.assertEqual(levels[:12], [70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 120])
+        self.assertEqual(len(levels), 44)
 
     def test_save_refuses_a_name_that_would_overwrite_another_protocol(self):
         # "My list" and "My_list" share a file name; saving one must not replace the other.

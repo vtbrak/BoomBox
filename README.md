@@ -101,7 +101,8 @@ clap step to the first picture where your hands touch. The window averages the c
 
 ## Protocols (Protocol tab)
 
-Every protocol starts with a **5-minute habituation** in 65 dB background white noise. All tones are
+Every protocol starts with a **5-minute habituation** in 65 dB background white noise, and the noise
+keeps playing through every stimulus until the session ends. All tones are
 10 ms bursts with a raised-cosine envelope (5 ms rise, 5 ms fall, no plateau).
 
 Four protocols are built in and locked. Their settings are editable after **Unlock for editing**;
@@ -115,9 +116,11 @@ changes are saved under a new name, and *Restore original* brings back the built
   the `Startle Habituation` assay variant. The habituation design is from
   https://doi.org/10.3389/fnint.2013.00103; the 8 kHz frequency and 115 dB level
   were chosen from https://doi.org/10.1016/j.jneumeth.2025.110497.
-- **Hearing Test**: the background noise turns off after the habituation, so quiet tones can be heard.
-  Then 8 kHz tones at 40, 50, 60, 70, 80, 90, 100, 110 and 120 dB, in two ascending and two descending
-  series (ascending, descending, ascending, descending), one every 15 s from 315 s: 36 tones.
+- **Hearing Test**: 8 kHz tones from 70 to 120 dB in 5 dB steps (70, 75, 80 … 120), in two ascending
+  and two descending series (ascending, descending, ascending, descending), one every 15 s from
+  315 s: 44 tones. The 65 dB background noise stays on throughout, so the series starts at 70 dB
+  (quieter tones would be masked). Before 1.3.10 the noise turned off at 300 s and the tones went
+  from 40 to 120 dB in 10 dB steps.
   From the UCSF IACUC standard procedure, https://iacuc.ucsf.edu/content/acoustic-startle-response.
 - **I/O** (input/output curve): 40 ms white-noise bursts at 70, 80, 90, 100, 110 and 120 dB plus a
   no-stimulus trial, in five blocks, each with all seven in a new random order, one every 15 s from
@@ -133,7 +136,7 @@ Other protocols:
   `time (s), kHz`, with an optional third value for that stimulus's dB. For a **white-noise burst**
   instead of a tone, write `noise` in place of the kHz (e.g. `300, noise, 110`); one list can mix
   tones and noise, and the generator's *Frequencies* box accepts `noise` too. Noise uses the white
-  noise calibration. *Noise off at* turns the background noise off at a set time.
+  noise calibration.
 - **PPI**: pulse and prepulse stimuli, prepulse levels above background, lead intervals, trial counts,
   pulse-alone blocks, random inter-trial intervals. *Preview schedule* shows the exact trial list.
 

@@ -1035,8 +1035,6 @@ class App:
         self._field(g, 2, 2, "Record after last tone (s)", ("end_padding_s",), p.get("end_padding_s", 30))
         self._field(g, 3, 0, "Assay variant (blank = plain startle)", ("assay_variant",),
                     p.get("assay_variant", ""), kind="str", width=18, values=protocols.ASSAY_VARIANTS)
-        self._field(g, 3, 2, "Noise off at (s, blank = stays on)", ("background_noise_off_s",),
-                    p.get("background_noise_off_s"), kind="opt_float")
 
         tf = ttk.LabelFrame(e, text="Stimuli, one per line: time (s), kHz or noise[, dB]", padding=6)
         tf.grid(row=0, column=1, rowspan=2, sticky="nw", padx=10)

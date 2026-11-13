@@ -10,8 +10,9 @@ Every protocol may carry a "reference": the paper(s) or procedure its design com
 from (DOI or web links, with a short note), recorded with each session.
 
 Every built-in protocol starts with a 5-minute habituation in background white
-noise. "background_noise_off_s" (optional) turns the noise off at that time,
-e.g. so quiet hearing-test stimuli aren't masked.
+noise, and the noise stays on until the end of the session. (Before 1.3.10 a
+protocol could turn it off with "background_noise_off_s"; that setting is now
+dropped when a saved protocol is loaded.)
 
 A schedule is a list of trials. Every trial has a reference time (ref_time_s,
 from frame 0 of the video) and optional "pulse" and "prepulse" stimuli. For
@@ -48,7 +49,8 @@ HABITUATION_REFERENCE = ("https://doi.org/10.3389/fnint.2013.00103 (habituation 
                          f"{TVS_REFERENCE} (choice of the 8 kHz tone at 115 dB)")
 HEARING_NAME = "Hearing Test"
 HEARING_REFERENCE = "https://iacuc.ucsf.edu/content/acoustic-startle-response (UCSF IACUC standard procedure)"
-HEARING_LEVELS_DB = [40, 50, 60, 70, 80, 90, 100, 110, 120]
+# 70 dB and up: the 65 dB background noise stays on, and would mask quieter tones.
+HEARING_LEVELS_DB = list(range(70, 121, 5))
 HEARING_ITI_S = 15.0
 # Two ascending and two descending series, alternating.
 HEARING_ORDER_DB = (HEARING_LEVELS_DB + HEARING_LEVELS_DB[::-1]) * 2
@@ -77,7 +79,6 @@ BUILTINS = {
         "reference": HEARING_REFERENCE,
         "startle": dict(TONE, level_db=80.0),
         "background_noise_db": 65.0,
-        "background_noise_off_s": float(HABITUATION_S),   # quiet stimuli must not be masked
         "end_padding_s": 30.0,
         "trials": [{"time_s": HABITUATION_S + HEARING_ITI_S * (i + 1), "freq_hz": 8000, "level_db": float(db)}
                    for i, db in enumerate(HEARING_ORDER_DB)],
@@ -100,6 +101,7 @@ BUILTINS = {
     },
 }
 LEGACY_BUILTIN_NAMES = ["ASR Standard"]   # old name of Tone Volume Sensitivity
+OLD_NOISE_OFF_KEY = "background_noise_off_s"   # before 1.3.10: time to turn the noise off
 
 DEFAULT_LIST = {
     "name": "Custom list",
@@ -219,6 +221,7 @@ def load(name):
         return copy.deepcopy(BUILTINS[name])
     for _, data in _user_files():
         if data["name"] == name:
+            data.pop(OLD_NOISE_OFF_KEY, None)    # background noise now always stays on
             return data
     raise KeyError(name)
 
@@ -236,6 +239,7 @@ def save(protocol):
                          f"'{existing}'. Choose a different name.")
     protocol = copy.deepcopy(protocol)
     protocol.pop("builtin", None)
+    protocol.pop(OLD_NOISE_OFF_KEY, None)
     config.save_json(path, protocol)
 
 
@@ -262,9 +266,6 @@ def build_schedule(protocol):
         raise ValueError(f"Unknown protocol type: {protocol['type']}")
     if not trials:
         raise ValueError("Protocol has no trials.")
-    off = protocol.get("background_noise_off_s")
-    if off is not None and float(off) < 0:
-        raise ValueError("Background noise off time must be 0 or more seconds.")
     last = max(_trial_end_s(t) for t in trials)
     return trials, last + float(protocol.get("end_padding_s", 30))
 

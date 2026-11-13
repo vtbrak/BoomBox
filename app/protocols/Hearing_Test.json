@@ -12,38 +12,37 @@
     "level_db": 80.0
   },
   "background_noise_db": 65.0,
-  "background_noise_off_s": 300.0,
   "end_padding_s": 30.0,
   "trials": [
     {
       "time_s": 315.0,
       "freq_hz": 8000,
-      "level_db": 40.0
+      "level_db": 70.0
     },
     {
       "time_s": 330.0,
       "freq_hz": 8000,
-      "level_db": 50.0
+      "level_db": 75.0
     },
     {
       "time_s": 345.0,
       "freq_hz": 8000,
-      "level_db": 60.0
+      "level_db": 80.0
     },
     {
       "time_s": 360.0,
       "freq_hz": 8000,
-      "level_db": 70.0
+      "level_db": 85.0
     },
     {
       "time_s": 375.0,
       "freq_hz": 8000,
-      "level_db": 80.0
+      "level_db": 90.0
     },
     {
       "time_s": 390.0,
       "freq_hz": 8000,
-      "level_db": 90.0
+      "level_db": 95.0
     },
     {
       "time_s": 405.0,
@@ -53,72 +52,72 @@
     {
       "time_s": 420.0,
       "freq_hz": 8000,
-      "level_db": 110.0
+      "level_db": 105.0
     },
     {
       "time_s": 435.0,
       "freq_hz": 8000,
-      "level_db": 120.0
+      "level_db": 110.0
     },
     {
       "time_s": 450.0,
       "freq_hz": 8000,
-      "level_db": 120.0
+      "level_db": 115.0
     },
     {
       "time_s": 465.0,
       "freq_hz": 8000,
-      "level_db": 110.0
+      "level_db": 120.0
     },
     {
       "time_s": 480.0,
       "freq_hz": 8000,
-      "level_db": 100.0
+      "level_db": 120.0
     },
     {
       "time_s": 495.0,
       "freq_hz": 8000,
-      "level_db": 90.0
+      "level_db": 115.0
     },
     {
       "time_s": 510.0,
       "freq_hz": 8000,
-      "level_db": 80.0
+      "level_db": 110.0
     },
     {
       "time_s": 525.0,
       "freq_hz": 8000,
-      "level_db": 70.0
+      "level_db": 105.0
     },
     {
       "time_s": 540.0,
       "freq_hz": 8000,
-      "level_db": 60.0
+      "level_db": 100.0
     },
     {
       "time_s": 555.0,
       "freq_hz": 8000,
-      "level_db": 50.0
+      "level_db": 95.0
     },
     {
       "time_s": 570.0,
       "freq_hz": 8000,
-      "level_db": 40.0
+      "level_db": 90.0
     },
     {
       "time_s": 585.0,
       "freq_hz": 8000,
-      "level_db": 40.0
+      "level_db": 85.0
     },
     {
       "time_s": 600.0,
       "freq_hz": 8000,
-      "level_db": 50.0
+      "level_db": 80.0
     },
     {
       "time_s": 615.0,
       "freq_hz": 8000,
-      "level_db": 60.0
+      "level_db": 75.0
     },
     {
       "time_s": 630.0,
@@ -128,72 +127,112 @@
     {
       "time_s": 645.0,
       "freq_hz": 8000,
-      "level_db": 80.0
+      "level_db": 70.0
     },
     {
       "time_s": 660.0,
       "freq_hz": 8000,
-      "level_db": 90.0
+      "level_db": 75.0
     },
     {
       "time_s": 675.0,
       "freq_hz": 8000,
-      "level_db": 100.0
+      "level_db": 80.0
     },
     {
       "time_s": 690.0,
       "freq_hz": 8000,
-      "level_db": 110.0
+      "level_db": 85.0
     },
     {
       "time_s": 705.0,
       "freq_hz": 8000,
-      "level_db": 120.0
+      "level_db": 90.0
     },
     {
       "time_s": 720.0,
       "freq_hz": 8000,
-      "level_db": 120.0
+      "level_db": 95.0
     },
     {
       "time_s": 735.0,
       "freq_hz": 8000,
-      "level_db": 110.0
+      "level_db": 100.0
     },
     {
       "time_s": 750.0,
       "freq_hz": 8000,
-      "level_db": 100.0
+      "level_db": 105.0
     },
     {
       "time_s": 765.0,
       "freq_hz": 8000,
-      "level_db": 90.0
+      "level_db": 110.0
     },
     {
       "time_s": 780.0,
       "freq_hz": 8000,
-      "level_db": 80.0
+      "level_db": 115.0
     },
     {
       "time_s": 795.0,
       "freq_hz": 8000,
-      "level_db": 70.0
+      "level_db": 120.0
     },
     {
       "time_s": 810.0,
       "freq_hz": 8000,
-      "level_db": 60.0
+      "level_db": 120.0
     },
     {
       "time_s": 825.0,
       "freq_hz": 8000,
-      "level_db": 50.0
+      "level_db": 115.0
     },
     {
       "time_s": 840.0,
       "freq_hz": 8000,
-      "level_db": 40.0
+      "level_db": 110.0
+    },
+    {
+      "time_s": 855.0,
+      "freq_hz": 8000,
+      "level_db": 105.0
+    },
+    {
+      "time_s": 870.0,
+      "freq_hz": 8000,
+      "level_db": 100.0
+    },
+    {
+      "time_s": 885.0,
+      "freq_hz": 8000,
+      "level_db": 95.0
+    },
+    {
+      "time_s": 900.0,
+      "freq_hz": 8000,
+      "level_db": 90.0
+    },
+    {
+      "time_s": 915.0,
+      "freq_hz": 8000,
+      "level_db": 85.0
+    },
+    {
+      "time_s": 930.0,
+      "freq_hz": 8000,
+      "level_db": 80.0
+    },
+    {
+      "time_s": 945.0,
+      "freq_hz": 8000,
+      "level_db": 75.0
+    },
+    {
+      "time_s": 960.0,
+      "freq_hz": 8000,
+      "level_db": 70.0
     }
   ]
 }

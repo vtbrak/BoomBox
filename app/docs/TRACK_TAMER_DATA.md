@@ -1,7 +1,7 @@
 # Boom Box data for Track Tamer
 
 What Boom Box saves beside each video, and how to read it. This describes
-**Boom Box 1.3.9**, writing **schema 1** of the Track Tamer video metadata
+**Boom Box 1.3.10**, writing **schema 1** of the Track Tamer video metadata
 standard (draft). It adds Boom Box's specifics to that standard and doesn't
 replace it.
 
@@ -76,7 +76,7 @@ left as `_video.mp4`. Track Tamer can skip such folders. (Since Boom Box 1.3.2.)
 | Field | How Boom Box fills it |
 |---|---|
 | `schema_version` | `1` |
-| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.9` |
+| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.10` |
 | `date`, `start_time` | The computer's clock at video frame 0 |
 | `assay` | Always `Acoustic Startle Response` |
 | `assay_variant` | Set per protocol: `Prepulse Inhibition`, `Startle Habituation`, or left out for plain startle |
@@ -255,7 +255,7 @@ These matter when choosing the window to search for a startle.
 | Field | What it is |
 |---|---|
 | `trials` | Per-trial detail (section 9) |
-| `protocol` | The full protocol used, including its name, tone shape and background noise level (`background_noise_db`). If it has `background_noise_off_s`, the noise was turned off at that many seconds from frame 0 |
+| `protocol` | The full protocol used, including its name, tone shape and background noise level (`background_noise_db`). If it has `background_noise_off_s` (only before 1.3.10), the noise was turned off at that many seconds from frame 0 |
 | `protocol_name` | Its name, e.g. `Tone Volume Sensitivity` |
 | `protocol_reference` | The paper(s) or procedure the protocol's design comes from, as DOI or web links, e.g. `https://doi.org/10.1523/JNEUROSCI.1313-25.2026` for `I/O`. When there's more than one, they're separated by `; ` with a short note in brackets saying what each was used for. `null` if none was given |
 | `schedule` | The planned trials |
@@ -325,12 +325,13 @@ stimulus is at 300 s or later. All tones are 10 ms bursts (5 ms rise, 5 ms fall)
 |---|---|---|---|
 | `Tone Volume Sensitivity` | 15 tones at 105 dB: three each at 4, 8, 12, 16 and 20 kHz, in a fixed order, at 300–710 s. Formerly called `ASR Standard` | left out | `pulse_freq_hz` |
 | `Startle Habituation` | 100 tones at 8 kHz and 115 dB, one every 15 s from 300 s | `Startle Habituation` | stimulus order (trial 1 to 100) |
-| `Hearing Test` | 36 tones at 8 kHz: 40, 50 … 120 dB in four series (ascending, descending, ascending, descending), one every 15 s from 315 s. **The background noise turns off at 300 s**, so these tones play in silence | left out | `pulse_db` |
+| `Hearing Test` | 44 tones at 8 kHz: 70, 75 … 120 dB in four series (ascending, descending, ascending, descending), one every 15 s from 315 s, with the background noise on throughout. **Before 1.3.10:** 36 tones at 40, 50 … 120 dB, with the background noise turned off at 300 s | left out | `pulse_db` |
 | `I/O` | Input/output curve: 40 ms white-noise bursts at 70, 80, 90, 100, 110 and 120 dB plus no-stimulus trials, five of each, in five blocks with each block shuffled, one every 15 s from 300 s (35 trials). Background noise stays on throughout | left out | `pulse_db` (no-stimulus trials as baseline) |
 | `PPI Default` and other PPI protocols | Pulses, prepulse+pulse, prepulse-only and no-stimulus trials in random order (unless a seed is set) | `Prepulse Inhibition` | `type`, `prepulse_db`, `interval_ms` |
 
 Users can also make their own tone lists, which can set a different level for
-each tone and a time to turn the noise off. Read `pulse_db` from each stimulus
+each tone. From 1.3.10 the background noise stays on to the end of every
+session; before that, a list could turn it off at a set time. Read `pulse_db` from each stimulus
 rather than assuming one level per session.
 
 ---
