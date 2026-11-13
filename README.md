@@ -79,6 +79,19 @@ Until calibrated, levels are approximate and every log is marked `uncalibrated`.
 "Loudest possible" shows the maximum each frequency can reach; if a protocol asks for more, the
 session won't start (turn up the amplifier and recalibrate).
 
+**Check selected protocol** opens a window that answers whether the protocol on the Session and
+Protocol tabs can be played at its levels:
+
+- At the top, one verdict: *Ready*, *Not calibrated*, *Some sounds aren't calibrated*, or *N levels
+  are louder than the speaker can play*, with what to do about it.
+- Under it, when the calibration was made, at what volume, and which sounds were measured.
+- One row per sound (each tone frequency, white-noise bursts, prepulses, background noise): its
+  levels, whether it was *measured*, *estimated* (between measured frequencies) or *not measured*,
+  and how much room is left at its loudest level ("12 dB to spare" or "120 dB is 3 dB too loud").
+- *Show output levels (dBFS)* lists the exact output for every level.
+
+The same check runs when a session starts, with one line per sound that has a problem.
+
 **Speaker limit:** the 12, 16 and 20 kHz rows show a warning. The lab speaker can blow out above
 100 dB at those frequencies, so keep them at or below 100 dB.
 
@@ -105,8 +118,30 @@ Every protocol starts with a **5-minute habituation** in 65 dB background white 
 keeps playing through every stimulus until the session ends. All tones are
 10 ms bursts with a raised-cosine envelope (5 ms rise, 5 ms fall, no plateau).
 
-Four protocols are built in and locked. Their settings are editable after **Unlock for editing**;
-changes are saved under a new name, and *Restore original* brings back the built-in version.
+The Protocol tab shows what a protocol will run before anything else:
+
+- **Summary** (left): the protocol's name and kind (*Stimulus list*, *Prepulse inhibition (PPI)* or
+  *Input/output curve (I/O)*), then its length, number of trials, first trial, time between trials,
+  startle sound and levels, prepulses (PPI), background noise and assay variant. The **Reference**
+  link can be selected and copied.
+- **Timeline** (left): the whole session at a glance, with one dot per startle placed by time and
+  level, rings for prepulses and ticks for no-stimulus trials. The grey area is the habituation.
+- **Trials** (right): every trial in order, with its time, type and sound.
+
+The row at the top:
+
+- **Protocol** menu: the protocol to look at. It's the same choice as on the Session tab.
+- **New...**: makes a protocol. Give it a name and pick its kind; it opens ready to edit.
+- **Copy...**: saves the protocol under a new name and opens the copy ready to edit. This is how to
+  change a built-in protocol.
+- **Edit**: opens the editing bar under the timeline, with the settings and, for a stimulus list,
+  the list itself. The summary, timeline and trials follow your changes as you type. **Save** keeps
+  them; **Cancel** throws them away. Until you save, sessions use the saved version, and Boom Box
+  asks before you switch away from unsaved changes.
+- **Delete**: deletes one of your protocols.
+
+Four protocols are built in. They can't be changed or deleted; **Edit** on a built-in offers to make
+your own copy.
 
 - **Tone Volume Sensitivity** (formerly "ASR Standard"): 15 tones at 105 dB. Frequencies 12, 4, 16,
   20, 8, 4, 20, 16, 12, 8, 8, 16, 4, 20, 12 kHz at 300, 337, 365, 398, 428, 440, 471, 514, 533, 568,
@@ -131,14 +166,17 @@ changes are saved under a new name, and *Restore original* brings back the built
 Every protocol has a **Reference** field for the paper its design comes from; it's saved with each
 session (in the info file and the event log).
 
-Other protocols:
-- **New list**: any times and frequencies, typed in or generated (fixed or random gaps). Each line is
-  `time (s), kHz`, with an optional third value for that stimulus's dB. For a **white-noise burst**
-  instead of a tone, write `noise` in place of the kHz (e.g. `300, noise, 110`); one list can mix
-  tones and noise, and the generator's *Frequencies* box accepts `noise` too. Noise uses the white
-  noise calibration.
-- **PPI**: pulse and prepulse stimuli, prepulse levels above background, lead intervals, trial counts,
-  pulse-alone blocks, random inter-trial intervals. *Preview schedule* shows the exact trial list.
+Your own protocols:
+- **Stimulus list**: any times and frequencies. Each line is `time (s), kHz`, with an optional third
+  value for that stimulus's dB; lines without one use the *Default startle tone* level. For a
+  **white-noise burst** instead of a tone, write `noise` in place of the kHz (e.g. `300, noise, 110`);
+  one list can mix tones and noise. Noise uses the white noise calibration. *Fill the list
+  automatically* writes a new list (fixed or random gaps; its *Frequencies* box accepts `noise` too)
+  and **Replace the list** puts it in place of the current one.
+- **Prepulse inhibition (PPI)**: pulse and prepulse stimuli, prepulse levels above background, lead
+  intervals, trial counts, pulse-alone blocks, random times between trials. Frequencies are in kHz.
+- **Input/output curve (I/O)**: startle bursts at a list of levels, each level once per block, in
+  shuffled blocks, with an optional no-stimulus trial in each block.
 
 ## Running a session (Session tab)
 

@@ -385,23 +385,91 @@ def _io_schedule(p):
     return trials
 
 
+TRIAL_TYPE_NAMES = {"startle": "startle", "pulse_alone": "pulse alone", "prepulse_pulse": "prepulse + pulse",
+                    "prepulse_alone": "prepulse alone", "no_stim": "no stimulus"}
+
+
+def _sound_name(stim):
+    return "noise" if stim["stimulus"] == "noise" else f"{stim['freq_hz'] / 1000:g} kHz"
+
+
+def trial_sound(tr):
+    """What a trial plays, in words, e.g. 'prepulse noise 68 dB, lead 100 ms; pulse 8 kHz 105 dB'."""
+    parts = []
+    if tr["prepulse"]:
+        pp = tr["prepulse"]
+        parts.append(f"prepulse {_sound_name(pp)} {pp['level_db']:g} dB"
+                     + (f", lead {tr['lead_ms']:g} ms" if tr["lead_ms"] else ""))
+    if tr["pulse"]:
+        pu = tr["pulse"]
+        parts.append(f"{'pulse ' if tr['prepulse'] else ''}{_sound_name(pu)} {pu['level_db']:g} dB")
+    return "; ".join(parts) or "(no stimulus)"
+
+
 def describe_schedule(trials, total_s):
     lines = [f"{len(trials)} trials, session length {total_s:.1f} s ({total_s / 60:.1f} min)", ""]
-    lines.append(f"{'#':>3}  {'time (s)':>9}  {'type':<15} stimulus")
+    lines.append(f"{'#':>3}  {'time (s)':>9}  {'type':<16} stimulus")
     for tr in trials:
-        parts = []
-        if tr["prepulse"]:
-            pp = tr["prepulse"]
-            what = "noise" if pp["stimulus"] == "noise" else f"{pp['freq_hz'] / 1000:g} kHz"
-            parts.append(f"prepulse {what} {pp['level_db']:g} dB"
-                         + (f", lead {tr['lead_ms']:g} ms" if tr["lead_ms"] else ""))
-        if tr["pulse"]:
-            pu = tr["pulse"]
-            what = "noise" if pu["stimulus"] == "noise" else f"{pu['freq_hz'] / 1000:g} kHz"
-            parts.append(f"pulse {what} {pu['level_db']:g} dB")
-        lines.append(f"{tr['trial']:>3}  {tr['ref_time_s']:>9.3f}  {tr['type']:<15} "
-                     + ("; ".join(parts) or "(no stimulus)"))
+        lines.append(f"{tr['trial']:>3}  {tr['ref_time_s']:>9.3f}  "
+                     f"{TRIAL_TYPE_NAMES.get(tr['type'], tr['type']):<16} {trial_sound(tr)}")
     return "\n".join(lines)
+
+
+def levels_text(levels):
+    """'70-120 dB, 5 dB steps', '105 dB' or '70, 80, 95 dB'."""
+    levels = sorted(set(levels))
+    if len(levels) == 1:
+        return f"{levels[0]:g} dB"
+    steps = {round(b - a, 6) for a, b in zip(levels, levels[1:])}
+    if len(steps) == 1 and len(levels) > 2:
+        return f"{levels[0]:g}–{levels[-1]:g} dB, {steps.pop():g} dB steps"
+    return ", ".join(f"{x:g}" for x in levels) + " dB"
+
+
+def _seconds_text(values):
+    lo, hi = min(values), max(values)
+    return f"{lo:g} s" if abs(hi - lo) < 0.001 else f"{lo:.0f}–{hi:.0f} s (varies)"
+
+
+def summarize(protocol, trials, total_s):
+    """The facts about what a protocol will run, as (label, value) pairs for the Protocol tab."""
+    out = [("Length", f"{total_s / 60:.1f} min"), ("Trials", str(len(trials)))]
+    counts = {}
+    for tr in trials:
+        counts[tr["type"]] = counts.get(tr["type"], 0) + 1
+    if len(counts) > 1:
+        order = list(TRIAL_TYPE_NAMES)
+        out.append(("Trial types", ", ".join(
+            f"{counts[k]} {TRIAL_TYPE_NAMES.get(k, k)}"
+            for k in sorted(counts, key=lambda k: order.index(k) if k in order else len(order)))))
+    if trials:
+        out.append(("First trial", f"{trials[0]['ref_time_s']:g} s"))
+    if len(trials) > 1:
+        gaps = [b["ref_time_s"] - a["ref_time_s"] for a, b in zip(trials, trials[1:])]
+        out.append(("Time between trials", _seconds_text(gaps)))
+    pulses = [tr["pulse"] for tr in trials if tr["pulse"]]
+    if pulses:
+        khz = [f"{f / 1000:g}" for f in sorted({pu["freq_hz"] for pu in pulses if pu["stimulus"] != "noise"})]
+        sound = []
+        if khz:
+            sound.append(", ".join(khz[:-1]) + (" and " if len(khz) > 1 else "") + khz[-1]
+                         + (" kHz tones" if len(khz) > 1 else " kHz tone"))
+        if any(pu["stimulus"] == "noise" for pu in pulses):
+            sound.append("white-noise bursts")
+        ms = sum(float(pulses[0][k]) for k in ("rise_ms", "plateau_ms", "fall_ms"))
+        out.append(("Startle sound", f"{' and '.join(sound)}, {ms:g} ms"))
+        out.append(("Startle levels", levels_text([pu["level_db"] for pu in pulses])))
+    pres = [tr for tr in trials if tr["prepulse"]]
+    if pres:
+        out.append(("Prepulse levels", levels_text([tr["prepulse"]["level_db"] for tr in pres])))
+        leads = sorted({tr["lead_ms"] for tr in pres if tr["lead_ms"]})
+        if leads:
+            out.append(("Lead intervals", ", ".join(f"{x:g}" for x in leads) + " ms"))
+    bg = protocol.get("background_noise_db")
+    out.append(("Background noise", "off" if bg is None else f"{bg:g} dB, whole session"))
+    if protocol.get("assay_variant"):
+        out.append(("Assay variant", protocol["assay_variant"]))
+    return out
 
 
 def stimuli_used(protocol):
@@ -419,5 +487,5 @@ def stimuli_used(protocol):
     out = [dict(protocol["pulse"])]
     bg = protocol.get("background_noise_db") or 0.0
     for lv in protocol["prepulse"]["levels_above_bg_db"]:
-        out.append(dict(protocol["prepulse"], level_db=float(bg) + float(lv)))
+        out.append(dict(protocol["prepulse"], level_db=float(bg) + float(lv), role="prepulse"))
     return out

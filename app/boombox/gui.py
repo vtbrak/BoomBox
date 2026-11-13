@@ -17,8 +17,9 @@ import numpy as np
 import sounddevice as sd
 from PIL import Image, ImageDraw, ImageTk
 
-from . import __version__, audio, calibration, camera, config, protocols, sysutil, uvc
+from . import __version__, audio, calibration, camera, config, level_check, protocols, sysutil, uvc
 from .config import ADD_NAME_LABEL
+from .protocol_tab import ProtocolTab
 from .session import Session
 from .stimuli import make_stimulus
 
@@ -30,30 +31,6 @@ NAME_PART_RE = re.compile(r"[A-Za-z0-9-]+")   # arena / camera label rule from t
 HIGH_TONE_HZ = 12000   # the lab speaker can blow out above 100 dB at these frequencies
 
 
-def parse_list_line(line):
-    """One line of a list protocol: 'time (s), kHz[, dB]', with 'noise' in place of
-    the kHz for white noise. Raises ValueError or IndexError if it can't be read."""
-    parts = [x for x in line.replace("\t", ",").replace(" ", ",").split(",") if x]
-    if not 2 <= len(parts) <= 3:
-        raise ValueError(line)
-    trial = {"time_s": float(parts[0])}
-    if parts[1].lower() == "noise":
-        trial["stimulus"] = "noise"
-    else:
-        trial["freq_hz"] = float(parts[1]) * 1000
-    if len(parts) > 2:
-        trial["level_db"] = float(parts[2])
-    return trial
-
-
-def _list_line_text(t):
-    what = "noise" if t.get("stimulus") == "noise" else f"{t['freq_hz'] / 1000:g}"
-    return f"{t['time_s']:g}, {what}" + (f", {t['level_db']:g}" if "level_db" in t else "")
-
-
-def _gen_item(x):
-    x = x.strip()
-    return "noise" if x.lower() == "noise" else float(x)
 PREVIEW_W, PREVIEW_H = 640, 360
 PREVIEW_MIN_W = 240
 LEFT_MIN_W = 480
@@ -179,8 +156,6 @@ class App:
         self.uvc = None
         self.session = None
         self.finalize_thread = None
-        self.unlocked = False
-        self.loaded_protocol = None
         self.cal_playing = None
         self._log_q = queue.Queue()
         self._preview_count = -1
@@ -377,36 +352,10 @@ class App:
 
     # ---------------------------------------------------------------------
     def _build_protocol_tab(self):
-        f = self.tab_protocol
-        top = ttk.Frame(f)
-        top.pack(fill="x")
-        ttk.Label(top, text="Protocol:").pack(side="left")
-        self.cb_protocol_edit = ttk.Combobox(top, textvariable=self.var_protocol, state="readonly",
-                                             width=28)
-        self.cb_protocol_edit.pack(side="left", padx=4)
-        self.cb_protocol_edit.bind("<<ComboboxSelected>>", lambda e: self.on_protocol_selected())
-        for text, cmd in (("New list", self.new_list_protocol), ("New PPI", self.new_ppi_protocol),
-                          ("Save", self.save_protocol), ("Save As...", self.save_protocol_as),
-                          ("Delete", self.delete_protocol)):
-            ttk.Button(top, text=text, command=cmd).pack(side="left", padx=2)
-
-        lockrow = ttk.Frame(f)
-        lockrow.pack(fill="x", pady=6)
-        self.var_lock = tk.StringVar()
-        ttk.Label(lockrow, textvariable=self.var_lock, foreground="#b00020").pack(side="left")
-        self.btn_unlock = ttk.Button(lockrow, text="Unlock for editing", command=self.unlock_protocol)
-        self.btn_unlock.pack(side="left", padx=6)
-        self.btn_restore = ttk.Button(lockrow, text="Restore original",
-                                      command=self.restore_builtin)
-        self.btn_restore.pack(side="left", padx=6)
-
-        self.editor = ttk.Frame(f)
-        self.editor.pack(fill="x")
-        prow = ttk.Frame(f)
-        prow.pack(fill="x", pady=4)
-        ttk.Button(prow, text="Preview schedule", command=self.preview_schedule).pack(side="left")
-        self.schedule_text = ScrolledText(f, height=14, width=90, font=(MONO_FONT, 11))
-        self.schedule_text.pack(fill="both", expand=True)
+        self.protocol_tab = ProtocolTab(self.tab_protocol, self.var_protocol, self.settings, self.log,
+                                        on_names=lambda names: self.cb_protocol.configure(values=names),
+                                        mono_font=MONO_FONT)
+        self.cb_protocol_edit = self.protocol_tab.combo
         self.refresh_protocol_list(self.settings.get("last_protocol"))
 
     # ---------------------------------------------------------------------
@@ -962,367 +911,10 @@ class App:
     # =====================================================================
     # Protocols
     def refresh_protocol_list(self, select=None):
-        names = protocols.list_protocols()
-        self.cb_protocol["values"] = names
-        self.cb_protocol_edit["values"] = names
-        if select in names:
-            self.var_protocol.set(select)
-        elif self.var_protocol.get() not in names and names:
-            self.var_protocol.set(names[0])
-        self.on_protocol_selected()
+        self.protocol_tab.refresh(select)
 
     def on_protocol_selected(self):
-        p = self.selected_protocol()
-        if p is None:
-            return
-        self.unlocked = False
-        self.settings["last_protocol"] = p["name"]
-        self.load_editor(p)
-
-    def is_locked(self):
-        return bool(self.loaded_protocol and self.loaded_protocol.get("builtin")) and not self.unlocked
-
-    def load_editor(self, p):
-        self.loaded_protocol = copy.deepcopy(p)
-        for w in self.editor.winfo_children():
-            w.destroy()
-        self.fields = {}
-        builtin = bool(p.get("builtin"))
-        self.var_lock.set(("LOCKED: built-in protocol. Unlock to edit; changes are saved under a new name."
-                           if self.is_locked() else ("Unlocked: use Save As to keep changes." if builtin else "")))
-        for b in (self.btn_unlock, self.btn_restore):
-            if builtin:
-                b.pack(side="left", padx=6)
-            else:
-                b.pack_forget()
-        {"list": self._list_editor, "ppi": self._ppi_editor, "io": self._io_editor}[p["type"]](p)
-        ref = ttk.Frame(self.editor)
-        ref.grid(row=10, column=0, columnspan=3, sticky="w", pady=(6, 0))
-        self._field(ref, 0, 0, "Reference (paper the protocol comes from, e.g. a DOI link)", ("reference",),
-                    p.get("reference", ""), kind="str", width=48)
-        self._set_editor_state()
-        self.preview_schedule()
-
-    def _field(self, parent, r, c, label, path, value, kind="float", width=8, values=None):
-        ttk.Label(parent, text=label).grid(row=r, column=c, sticky="w", padx=(0 if c == 0 else 12, 4), pady=2)
-        if kind == "list":
-            text = ", ".join(f"{x:g}" for x in value)
-        elif kind == "opt_float":
-            text = "" if value is None else f"{value:g}"
-        elif kind in ("float", "int"):
-            text = f"{value:g}"
-        else:
-            text = "" if value is None else str(value)
-        v = tk.StringVar(value=text)
-        if values:
-            w = ttk.Combobox(parent, textvariable=v, values=values, width=width, state="readonly")
-        else:
-            w = ttk.Entry(parent, textvariable=v, width=width)
-        w.grid(row=r, column=c + 1, sticky="w", pady=2)
-        self.fields[path] = (v, kind, w)
-
-    def _list_editor(self, p):
-        e = self.editor
-        st = p["startle"]
-        g = ttk.LabelFrame(e, text="Startle tone", padding=6)
-        g.grid(row=0, column=0, sticky="nw")
-        self._field(g, 0, 0, "Level (dB SPL)", ("startle", "level_db"), st["level_db"])
-        self._field(g, 0, 2, "Rise (ms)", ("startle", "rise_ms"), st["rise_ms"])
-        self._field(g, 1, 0, "Plateau (ms)", ("startle", "plateau_ms"), st["plateau_ms"])
-        self._field(g, 1, 2, "Fall (ms)", ("startle", "fall_ms"), st["fall_ms"])
-        self._field(g, 2, 0, "Background noise (dB SPL, blank = off)", ("background_noise_db",),
-                    p.get("background_noise_db"), kind="opt_float")
-        self._field(g, 2, 2, "Record after last tone (s)", ("end_padding_s",), p.get("end_padding_s", 30))
-        self._field(g, 3, 0, "Assay variant (blank = plain startle)", ("assay_variant",),
-                    p.get("assay_variant", ""), kind="str", width=18, values=protocols.ASSAY_VARIANTS)
-
-        tf = ttk.LabelFrame(e, text="Stimuli, one per line: time (s), kHz or noise[, dB]", padding=6)
-        tf.grid(row=0, column=1, rowspan=2, sticky="nw", padx=10)
-        ttk.Label(tf, text="For white noise, write noise in place of the kHz,\n"
-                           "e.g. 300, noise, 110. dB is optional; without it\n"
-                           "the level above is used.",
-                  foreground="#555", justify="left").pack(anchor="w")
-        self.trials_text = tk.Text(tf, width=26, height=12, font=(MONO_FONT, 11))
-        self.trials_text.pack()
-        self.trials_text.insert("end", "\n".join(_list_line_text(t) for t in p["trials"]))
-
-        gen = ttk.LabelFrame(e, text="Generate tone list", padding=6)
-        gen.grid(row=1, column=0, sticky="nw", pady=6)
-        self.gen_vars = {}
-        for i, (key, label, default) in enumerate([
-                ("first", "First tone (s)", str(protocols.HABITUATION_S)), ("n", "Number of tones", "15"),
-                ("isi_min", "Gap min (s)", "15"), ("isi_max", "Gap max (s)", "45"),
-                ("freqs", "Frequencies (kHz or noise)", "4, 8, 12, 16, 20")]):
-            ttk.Label(gen, text=label).grid(row=i // 2, column=(i % 2) * 2, sticky="w", padx=4)
-            v = tk.StringVar(value=default)
-            ttk.Entry(gen, textvariable=v, width=16 if key == "freqs" else 7).grid(
-                row=i // 2, column=(i % 2) * 2 + 1, sticky="w")
-            self.gen_vars[key] = v
-        self.gen_vars["order"] = tk.StringVar(value="random (balanced)")
-        ttk.Combobox(gen, textvariable=self.gen_vars["order"], state="readonly", width=16,
-                     values=["random (balanced)", "in order (cycle)"]).grid(row=2, column=3, sticky="w")
-        self.btn_generate = ttk.Button(gen, text="Generate", command=self.generate_list)
-        self.btn_generate.grid(row=3, column=0, columnspan=4, sticky="w", pady=4)
-
-    def _ppi_editor(self, p):
-        e = self.editor
-        gen = ttk.LabelFrame(e, text="Session", padding=6)
-        gen.grid(row=0, column=0, sticky="nw")
-        self._field(gen, 0, 0, "Background noise (dB SPL)", ("background_noise_db",),
-                    p.get("background_noise_db"), kind="opt_float")
-        self._field(gen, 1, 0, "Habituation before 1st trial (s)", ("acclimation_s",), p["acclimation_s"])
-        self._field(gen, 2, 0, "Record after last trial (s)", ("end_padding_s",), p["end_padding_s"])
-        self._field(gen, 3, 0, "Inter-trial interval min (s)", ("iti_min_s",), p["iti_min_s"])
-        self._field(gen, 4, 0, "Inter-trial interval max (s)", ("iti_max_s",), p["iti_max_s"])
-        self._field(gen, 5, 0, "Randomize order", ("randomize",), "yes" if p["randomize"] else "no",
-                    kind="bool", values=["yes", "no"])
-        self._field(gen, 6, 0, "Random seed (blank = new each run)", ("seed",), p.get("seed"), kind="opt_int")
-        self._field(gen, 7, 0, "Assay variant", ("assay_variant",),
-                    p.get("assay_variant", "Prepulse Inhibition"), kind="str", width=18,
-                    values=protocols.ASSAY_VARIANTS)
-
-        pu = ttk.LabelFrame(e, text="Pulse (startle)", padding=6)
-        pu.grid(row=0, column=1, sticky="nw", padx=8)
-        pp = p["pulse"]
-        self._field(pu, 0, 0, "Stimulus", ("pulse", "stimulus"), pp["stimulus"], kind="str",
-                    values=["tone", "noise"])
-        self._field(pu, 1, 0, "Frequency (Hz)", ("pulse", "freq_hz"), pp["freq_hz"])
-        self._field(pu, 2, 0, "Level (dB SPL)", ("pulse", "level_db"), pp["level_db"])
-        self._field(pu, 3, 0, "Rise (ms)", ("pulse", "rise_ms"), pp["rise_ms"])
-        self._field(pu, 4, 0, "Plateau (ms)", ("pulse", "plateau_ms"), pp["plateau_ms"])
-        self._field(pu, 5, 0, "Fall (ms)", ("pulse", "fall_ms"), pp["fall_ms"])
-
-        pr = ttk.LabelFrame(e, text="Prepulse", padding=6)
-        pr.grid(row=0, column=2, sticky="nw", padx=8)
-        q = p["prepulse"]
-        self._field(pr, 0, 0, "Stimulus", ("prepulse", "stimulus"), q["stimulus"], kind="str",
-                    values=["noise", "tone"])
-        self._field(pr, 1, 0, "Frequency (Hz, tone only)", ("prepulse", "freq_hz"), q["freq_hz"])
-        self._field(pr, 2, 0, "Levels above background (dB)", ("prepulse", "levels_above_bg_db"),
-                    q["levels_above_bg_db"], kind="list", width=12)
-        self._field(pr, 3, 0, "Rise (ms)", ("prepulse", "rise_ms"), q["rise_ms"])
-        self._field(pr, 4, 0, "Plateau (ms)", ("prepulse", "plateau_ms"), q["plateau_ms"])
-        self._field(pr, 5, 0, "Fall (ms)", ("prepulse", "fall_ms"), q["fall_ms"])
-        self._field(pr, 6, 0, "Lead intervals, onset to onset (ms)", ("lead_intervals_ms",),
-                    p["lead_intervals_ms"], kind="list", width=12)
-
-        tr = ttk.LabelFrame(e, text="Trials", padding=6)
-        tr.grid(row=1, column=0, columnspan=3, sticky="nw", pady=6)
-        self._field(tr, 0, 0, "Pulse-alone block at start", ("start_pulse_alone",), p["start_pulse_alone"], kind="int")
-        self._field(tr, 0, 2, "Pulse-alone block at end", ("end_pulse_alone",), p["end_pulse_alone"], kind="int")
-        self._field(tr, 1, 0, "Pulse-alone (mixed in)", ("n_pulse_alone",), p["n_pulse_alone"], kind="int")
-        self._field(tr, 1, 2, "No-stimulus trials", ("n_no_stim",), p["n_no_stim"], kind="int")
-        self._field(tr, 2, 0, "Prepulse+pulse, per level x lead", ("n_prepulse_pulse_each",),
-                    p["n_prepulse_pulse_each"], kind="int")
-        self._field(tr, 2, 2, "Prepulse-alone, per level", ("n_prepulse_alone_each",),
-                    p["n_prepulse_alone_each"], kind="int")
-
-    def _io_editor(self, p):
-        e = self.editor
-        gen = ttk.LabelFrame(e, text="Session", padding=6)
-        gen.grid(row=0, column=0, sticky="nw")
-        self._field(gen, 0, 0, "Background noise (dB SPL, blank = off)", ("background_noise_db",),
-                    p.get("background_noise_db"), kind="opt_float")
-        self._field(gen, 1, 0, "Habituation before 1st trial (s)", ("acclimation_s",), p["acclimation_s"])
-        self._field(gen, 2, 0, "Time between trials (s)", ("iti_s",), p["iti_s"])
-        self._field(gen, 3, 0, "Record after last trial (s)", ("end_padding_s",), p["end_padding_s"])
-        self._field(gen, 4, 0, "Shuffle each block", ("randomize",), "yes" if p["randomize"] else "no",
-                    kind="bool", values=["yes", "no"])
-        self._field(gen, 5, 0, "Random seed (blank = new each run)", ("seed",), p.get("seed"), kind="opt_int")
-        self._field(gen, 6, 0, "Assay variant (blank = plain startle)", ("assay_variant",),
-                    p.get("assay_variant", ""), kind="str", width=18, values=protocols.ASSAY_VARIANTS)
-
-        pu = ttk.LabelFrame(e, text="Startle sound", padding=6)
-        pu.grid(row=0, column=1, sticky="nw", padx=8)
-        pp = p["pulse"]
-        self._field(pu, 0, 0, "Stimulus", ("pulse", "stimulus"), pp["stimulus"], kind="str",
-                    values=["noise", "tone"])
-        self._field(pu, 1, 0, "Frequency (Hz, tone only)", ("pulse", "freq_hz"), pp["freq_hz"])
-        self._field(pu, 2, 0, "Rise (ms)", ("pulse", "rise_ms"), pp["rise_ms"])
-        self._field(pu, 3, 0, "Plateau (ms)", ("pulse", "plateau_ms"), pp["plateau_ms"])
-        self._field(pu, 4, 0, "Fall (ms)", ("pulse", "fall_ms"), pp["fall_ms"])
-
-        tr = ttk.LabelFrame(e, text="Trials", padding=6)
-        tr.grid(row=0, column=2, sticky="nw", padx=8)
-        self._field(tr, 0, 0, "Levels (dB SPL)", ("levels_db",), p["levels_db"], kind="list", width=22)
-        self._field(tr, 1, 0, "Add a no-stimulus trial", ("include_no_stim",),
-                    "yes" if p.get("include_no_stim") else "no", kind="bool", values=["yes", "no"])
-        self._field(tr, 2, 0, "Blocks (each level once per block)", ("repeats",), p["repeats"], kind="int")
-
-    def _set_editor_state(self):
-        locked = self.is_locked()
-        for v, kind, w in self.fields.values():
-            if isinstance(w, ttk.Combobox):
-                w.configure(state="disabled" if locked else "readonly")
-            else:
-                w.configure(state="disabled" if locked else "normal")
-        if self.loaded_protocol["type"] == "list":
-            self.trials_text.configure(state="disabled" if locked else "normal",
-                                       bg="#eeeeee" if locked else "white")
-            self.btn_generate.configure(state="disabled" if locked else "normal")
-
-    def editor_protocol(self):
-        """Protocol dict from the editor fields. Raises ValueError with a readable message."""
-        p = copy.deepcopy(self.loaded_protocol)
-        for path, (v, kind, w) in self.fields.items():
-            s = v.get().strip()
-            label = " / ".join(path)
-            try:
-                if kind == "float":
-                    val = float(s)
-                elif kind == "int":
-                    val = int(s)
-                elif kind == "opt_float":
-                    val = float(s) if s else None
-                elif kind == "opt_int":
-                    val = int(s) if s else None
-                elif kind == "list":
-                    val = [float(x) for x in s.replace(";", ",").split(",") if x.strip()]
-                elif kind == "bool":
-                    val = s == "yes"
-                else:
-                    val = s
-            except ValueError:
-                raise ValueError(f"'{s}' is not a valid value for {label}.")
-            d = p
-            for k in path[:-1]:
-                d = d[k]
-            d[path[-1]] = val
-        if p["type"] == "list":
-            trials = []
-            for n, line in enumerate(self.trials_text.get("1.0", "end").splitlines(), start=1):
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                try:
-                    trials.append(parse_list_line(line))
-                except (ValueError, IndexError):
-                    raise ValueError(f"Stimulus list line {n} should be 'time (s), kHz' or "
-                                     f"'time (s), kHz, dB', with noise in place of the kHz "
-                                     f"for white noise: {line}")
-            p["trials"] = trials
-        return p
-
-    def generate_list(self):
-        try:
-            g = {k: v.get() for k, v in self.gen_vars.items()}
-            first, n = float(g["first"]), int(g["n"])
-            lo, hi = float(g["isi_min"]), float(g["isi_max"])
-            freqs = [_gen_item(x) for x in g["freqs"].split(",") if x.strip()]
-            if n < 1 or not freqs or lo <= 0 or hi < lo:
-                raise ValueError
-        except ValueError:
-            messagebox.showerror("Generate", "Check the generator values (gap min must be > 0 and <= max).")
-            return
-        rng = np.random.default_rng()
-        if g["order"].startswith("random"):
-            seq = (freqs * (n // len(freqs) + 1))[:n]
-            rng.shuffle(seq)
-        else:
-            seq = [freqs[i % len(freqs)] for i in range(n)]
-        t, lines = first, []
-        for f in seq:
-            lines.append(f"{round(t, 3):g}, {f if f == 'noise' else format(f, 'g')}")
-            t += rng.uniform(lo, hi)
-        self.trials_text.delete("1.0", "end")
-        self.trials_text.insert("end", "\n".join(lines))
-        self.preview_schedule()
-
-    def preview_schedule(self):
-        self.schedule_text.delete("1.0", "end")
-        try:
-            p = self.editor_protocol()
-            trials, total = protocols.build_schedule(p)
-            text = protocols.describe_schedule(trials, total)
-            if p["type"] == "ppi" and p.get("randomize") and p.get("seed") is None:
-                text = "(Random order: each session gets a new order. Set a seed to repeat one.)\n" + text
-        except Exception as e:
-            text = f"Problem with this protocol: {e}"
-        self.schedule_text.insert("end", text)
-
-    def unlock_protocol(self):
-        if messagebox.askyesno("Unlock", "Unlock this built-in protocol for editing?\n\n"
-                               "Your changes will be saved under a new name. The original "
-                               "protocol stays available."):
-            self.unlocked = True
-            self.var_lock.set("Unlocked: use Save As to keep changes.")
-            self._set_editor_state()
-
-    def restore_builtin(self):
-        name = self.var_protocol.get()
-        if protocols.is_builtin(name) and messagebox.askyesno(
-                "Restore", f"Restore the original '{name}' protocol?"):
-            protocols.restore_builtin(name)
-            self.refresh_protocol_list(name)
-
-    def save_protocol(self):
-        if self.loaded_protocol.get("builtin"):
-            self.save_protocol_as()
-            return
-        try:
-            p = self.editor_protocol()
-            protocols.build_schedule(p)
-            protocols.save(p)
-            self.log(f"Protocol saved: {p['name']}")
-            self.refresh_protocol_list(p["name"])
-        except Exception as e:
-            messagebox.showerror("Save protocol", str(e))
-
-    def save_protocol_as(self):
-        try:
-            p = self.editor_protocol()
-            protocols.build_schedule(p)
-        except Exception as e:
-            messagebox.showerror("Save protocol", str(e))
-            return
-        name = simpledialog.askstring("Save As", "Name for this protocol:", parent=self.root)
-        if not name:
-            return
-        name = name.strip()
-        if protocols.is_builtin(name):
-            messagebox.showerror("Save As", "That name is reserved for a built-in protocol.")
-            return
-        if name in protocols.list_protocols() and not messagebox.askyesno("Save As", f"Replace '{name}'?"):
-            return
-        p["name"] = name
-        try:
-            protocols.save(p)
-        except ValueError as e:
-            messagebox.showerror("Save As", str(e))
-            return
-        self.log(f"Protocol saved: {name}")
-        self.refresh_protocol_list(name)
-
-    def delete_protocol(self):
-        name = self.var_protocol.get()
-        if protocols.is_builtin(name):
-            messagebox.showinfo("Delete", "Built-in protocols can't be deleted.")
-            return
-        if messagebox.askyesno("Delete", f"Delete protocol '{name}'?"):
-            protocols.delete(name)
-            self.refresh_protocol_list(protocols.TVS_NAME)
-
-    def _new_protocol(self, template):
-        name = simpledialog.askstring("New protocol", "Name:", parent=self.root)
-        if not name:
-            return
-        p = copy.deepcopy(template)
-        p["name"] = name.strip()
-        if p["name"] in protocols.list_protocols():
-            messagebox.showerror("New protocol", f"A protocol called '{p['name']}' already exists.")
-            return
-        try:
-            protocols.save(p)
-        except ValueError as e:
-            messagebox.showerror("New protocol", str(e))
-            return
-        self.refresh_protocol_list(p["name"])
-
-    def new_list_protocol(self):
-        self._new_protocol(protocols.DEFAULT_LIST)
-
-    def new_ppi_protocol(self):
-        self._new_protocol(protocols.DEFAULT_PPI)
+        self.protocol_tab.on_selected()
 
     # =====================================================================
     # Calibration
@@ -1437,29 +1029,8 @@ class App:
 
     def check_protocol_levels(self):
         p = self.selected_protocol()
-        if not p:
-            return
-        messagebox.showinfo("Level check", "\n".join(self.level_problems(p, verbose=True)) or "All OK")
-
-    def level_problems(self, p, verbose=False):
-        out, seen = [], set()
-        stims = protocols.stimuli_used(p)
-        if p.get("background_noise_db") is not None:
-            stims.append({"stimulus": "noise", "level_db": p["background_noise_db"], "background": True})
-        for s in stims:
-            key = (s["stimulus"], s.get("freq_hz") if s["stimulus"] == "tone" else 0, s["level_db"])
-            if key in seen:
-                continue
-            seen.add(key)
-            dbfs, status, ok = calibration.stimulus_dbfs(self.cal, s, s["level_db"])
-            what = ("background noise" if s.get("background") else
-                    "noise" if s["stimulus"] == "noise" else f"{s['freq_hz'] / 1000:g} kHz")
-            if not ok:
-                out.append(f"TOO LOUD: {what} at {s['level_db']:g} dB SPL needs {dbfs:.1f} dBFS "
-                           "(turn the amplifier up and recalibrate)")
-            elif verbose or status != "calibrated":
-                out.append(f"{what} at {s['level_db']:g} dB SPL -> {dbfs:.1f} dBFS ({status})")
-        return out
+        if p:
+            level_check.LevelCheckWindow(self.root, self.cal, p, mono_font=MONO_FONT)
 
     # =====================================================================
     # Session
@@ -1544,8 +1115,12 @@ class App:
                 trials, total = protocols.build_schedule(p)
             except Exception as e:
                 errors.append(f"Protocol problem: {e}")
-            for line in self.level_problems(p):
-                (errors if line.startswith("TOO LOUD") else warnings).append(line)
+            try:
+                level_errors, level_warnings = level_check.problem_lines(self.cal, p)
+                errors += level_errors
+                warnings += level_warnings
+            except Exception as e:
+                errors.append(f"Protocol problem: {e}")
 
         if not calibration.is_calibrated(self.cal):
             warnings.append("Speaker is NOT calibrated: dB SPL levels are approximate.")

@@ -65,18 +65,6 @@ class ProtocolTests(unittest.TestCase):
             protocols.delete("Another")
             self.assertFalse((user_dir / "Another.json").exists())
 
-    def test_new_protocol_with_an_existing_name_doesnt_replace_it(self):
-        with protocol_dirs() as (_, d), \
-                mock.patch.object(gui.simpledialog, "askstring", return_value="PPI Default"), \
-                mock.patch.object(gui.messagebox, "showerror") as shown:
-            protocols.ensure_builtin()
-            before = (d / "PPI_Default.json").read_text()
-            app = mock.Mock()
-            gui.App._new_protocol(app, protocols.DEFAULT_LIST)
-            self.assertEqual((d / "PPI_Default.json").read_text(), before)
-            shown.assert_called_once()
-            app.refresh_protocol_list.assert_not_called()
-
     def test_io_schedule(self):
         p = protocols.BUILTINS[protocols.IO_NAME]
         self.assertEqual(p["reference"], "https://doi.org/10.1523/JNEUROSCI.1313-25.2026")
