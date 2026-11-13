@@ -1,8 +1,8 @@
 # Boom Box data for Track Tamer
 
 What Boom Box saves beside each video, and how to read it. This describes
-**Boom Box 1.3.10**, writing **schema 1** of the Track Tamer video metadata
-standard (draft). It adds Boom Box's specifics to that standard and doesn't
+**Boom Box 1.3.11**, writing **schema 1** of the Track Tamer video metadata
+standard (final since 2026-11-12). It adds Boom Box's specifics to that standard and doesn't
 replace it.
 
 **Assay:** every Boom Box session is `Acoustic Startle Response`.
@@ -18,6 +18,12 @@ replace it.
 - To analyze by tone frequency, use **`pulse_freq_hz`** in `stimuli`.
 - Check `boom_box.calibrated`. If it's `false`, the dB values are only
   approximate.
+- Keep `_info.json` with its video. Track Tamer takes stimulus times only from
+  its `stimuli` list, so a startle video without its info file can't be given
+  trials.
+- Track Tamer measures startle on the whole video frame (no crop or exclusion
+  shapes), because the motion index is a share of the pixels analyzed. Set the
+  camera up so the frame shows the animal holder and little else.
 
 ---
 
@@ -76,7 +82,7 @@ left as `_video.mp4`. Track Tamer can skip such folders. (Since Boom Box 1.3.2.)
 | Field | How Boom Box fills it |
 |---|---|
 | `schema_version` | `1` |
-| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.10` |
+| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.11` |
 | `date`, `start_time` | The computer's clock at video frame 0 |
 | `assay` | Always `Acoustic Startle Response` |
 | `assay_variant` | Set per protocol: `Prepulse Inhibition`, `Startle Habituation`, or left out for plain startle |
@@ -190,7 +196,8 @@ One row per video frame, in order.
 ## 6. `stimuli`: the startle events
 
 One entry per trial that took place, in order. Left out entirely if no trial
-took place.
+took place. This list is Track Tamer's only source of stimulus times; there's no
+step for typing them in.
 
 | Field | Meaning |
 |---|---|
@@ -361,7 +368,10 @@ in `boom_box`.
 
 ## 13. Status
 
-- The file format was checked with a short test session on a Mac, using the test
-  camera. It hasn't yet been checked with the lab's camera in a real session.
+- The file format has been checked with sessions on a Mac using the lab's camera,
+  without an animal. It hasn't yet been checked in a session with a mouse.
 - Windows support is written but hasn't yet been run on a PC.
-- The standard is still a draft, so these details may change.
+- Schema 1 of the standard is final. Optional fields, assays and variant names
+  can be added without a new version. Renaming or removing a field, or changing
+  what one means, would make it schema 2 and is agreed with Track Tamer first.
+  Boom Box's own `boom_box` object can change without that.
