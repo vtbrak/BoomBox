@@ -47,6 +47,10 @@ TVS_FREQS_KHZ = [12, 4, 16, 20, 8, 4, 20, 16, 12, 8, 8, 16, 4, 20, 12]
 HABITUATION_NAME = "Startle Habituation"
 HABITUATION_REFERENCE = ("https://doi.org/10.3389/fnint.2013.00103 (habituation design); "
                          f"{TVS_REFERENCE} (choice of the 8 kHz tone at 115 dB)")
+# A second habituation series: 20 ms flat tones (no rise or fall) at 8 kHz and 105 dB,
+# one every 20 s (onset to onset) after the habituation.
+HABITUATION_105_NAME = "Startle Habituation 105 dB"
+HABITUATION_105_ISI_S = 20.0
 HEARING_NAME = "Hearing Test"
 HEARING_REFERENCE = "https://iacuc.ucsf.edu/content/acoustic-startle-response (UCSF IACUC standard procedure)"
 # 70 dB and up: the 65 dB background noise stays on, and would mask quieter tones.
@@ -73,6 +77,14 @@ BUILTINS = {
         "background_noise_db": 65.0,
         "end_padding_s": 30.0,
         "trials": [{"time_s": HABITUATION_S + 15 * i, "freq_hz": 8000} for i in range(100)],
+    },
+    HABITUATION_105_NAME: {
+        "name": HABITUATION_105_NAME, "type": "list", "builtin": True,
+        "assay_variant": "Startle Habituation", "reference": "",
+        "startle": {"stimulus": "tone", "rise_ms": 0.0, "plateau_ms": 20.0, "fall_ms": 0.0, "level_db": 105.0},
+        "background_noise_db": 65.0,
+        "end_padding_s": 30.0,
+        "trials": [{"time_s": HABITUATION_S + HABITUATION_105_ISI_S * i, "freq_hz": 8000} for i in range(100)],
     },
     HEARING_NAME: {
         "name": HEARING_NAME, "type": "list", "builtin": True, "assay_variant": "",

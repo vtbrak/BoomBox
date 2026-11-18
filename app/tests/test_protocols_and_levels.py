@@ -23,6 +23,13 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual([t["ref_time_s"] for t in tvs][:2], [300, 337])
         hab, _ = protocols.build_schedule(protocols.BUILTINS[protocols.HABITUATION_NAME])
         self.assertEqual(len(hab), 100)
+        hab105, total = protocols.build_schedule(protocols.BUILTINS[protocols.HABITUATION_105_NAME])
+        self.assertEqual(len(hab105), 100)
+        self.assertEqual([t["ref_time_s"] for t in hab105[:3]], [300, 320, 340])
+        pulse = hab105[0]["pulse"]
+        self.assertEqual((pulse["freq_hz"], pulse["level_db"]), (8000, 105))
+        self.assertEqual((pulse["rise_ms"], pulse["plateau_ms"], pulse["fall_ms"]), (0, 20, 0))
+        self.assertAlmostEqual(total / 60, 38.5, places=2)
         hearing, _ = protocols.build_schedule(protocols.BUILTINS[protocols.HEARING_NAME])
         levels = [t["pulse"]["level_db"] for t in hearing]
         self.assertEqual(levels[:12], [70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 120])
@@ -58,7 +65,7 @@ class ProtocolTests(unittest.TestCase):
             self.assertEqual(protocols.load("PPI Default")["seed"], 3)      # the user's edits kept
             self.assertTrue((builtin_dir / "Hearing_Test.json").exists())
             names = protocols.list_protocols()
-            self.assertEqual(names[:4], list(protocols.BUILTINS))
+            self.assertEqual(names[:len(protocols.BUILTINS)], list(protocols.BUILTINS))
             self.assertIn("My list", names)
             protocols.save(dict(protocols.DEFAULT_LIST, name="Another"))
             self.assertTrue((user_dir / "Another.json").exists())

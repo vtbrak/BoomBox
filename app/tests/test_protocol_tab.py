@@ -57,7 +57,7 @@ class ProtocolTabTests(unittest.TestCase):
         self.assertFalse(self.tab.editor.winfo_manager())
         self.assertEqual(self.tab.var_note.get(), protocol_tab.EDIT_BUILTIN_NOTE)
         self.assertEqual(str(self.tab.btn_delete["state"]), "disabled")
-        self.assertEqual(self.names[-1][:4], list(protocols.BUILTINS))
+        self.assertEqual(self.names[-1][:len(protocols.BUILTINS)], list(protocols.BUILTINS))
         self.assertEqual(self.settings["last_protocol"], protocols.HEARING_NAME)
 
     def test_the_reference_can_be_copied_but_not_changed(self):

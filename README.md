@@ -115,8 +115,8 @@ clap step to the first picture where your hands touch. The window averages the c
 ## Protocols (Protocol tab)
 
 Every protocol starts with a **5-minute habituation** in 65 dB background white noise, and the noise
-keeps playing through every stimulus until the session ends. All tones are
-10 ms bursts with a raised-cosine envelope (5 ms rise, 5 ms fall, no plateau).
+keeps playing through every stimulus until the session ends. Tones are 10 ms bursts with a
+raised-cosine envelope (5 ms rise, 5 ms fall, no plateau), except in Startle Habituation 105 dB.
 
 The Protocol tab shows what a protocol will run before anything else:
 
@@ -140,7 +140,7 @@ The row at the top:
   asks before you switch away from unsaved changes.
 - **Delete**: deletes one of your protocols.
 
-Four protocols are built in. They can't be changed or deleted; **Edit** on a built-in offers to make
+Five protocols are built in. They can't be changed or deleted; **Edit** on a built-in offers to make
 your own copy.
 
 - **Tone Volume Sensitivity** (formerly "ASR Standard"): 15 tones at 105 dB. Frequencies 12, 4, 16,
@@ -151,6 +151,9 @@ your own copy.
   the `Startle Habituation` assay variant. The habituation design is from
   https://doi.org/10.3389/fnint.2013.00103; the 8 kHz frequency and 115 dB level
   were chosen from https://doi.org/10.1016/j.jneumeth.2025.110497.
+- **Startle Habituation 105 dB**: 100 tones at 8 kHz and 105 dB, one every 20 s (onset to onset)
+  from 300 s: 38.5 minutes. Each tone is 20 ms at full level, with no rise or fall, so its start and
+  end are abrupt. Recorded with the `Startle Habituation` assay variant.
 - **Hearing Test**: 8 kHz tones from 70 to 120 dB in 5 dB steps (70, 75, 80 … 120), in two ascending
   and two descending series (ascending, descending, ascending, descending), one every 15 s from
   315 s: 44 tones. The 65 dB background noise stays on throughout, so the series starts at 70 dB
