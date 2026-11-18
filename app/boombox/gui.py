@@ -356,7 +356,7 @@ class App:
                                         on_names=lambda names: self.cb_protocol.configure(values=names),
                                         mono_font=MONO_FONT)
         self.cb_protocol_edit = self.protocol_tab.combo
-        self.refresh_protocol_list(self.settings.get("last_protocol"))
+        self.refresh_protocol_list(protocols.current_name(self.settings.get("last_protocol")))
 
     # ---------------------------------------------------------------------
     def _build_calibration_tab(self):

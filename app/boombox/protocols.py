@@ -44,13 +44,14 @@ TVS_PUBLISHED_TIMES_S = [120, 157, 185, 218, 248, 260, 291, 334, 353, 388, 419, 
 TVS_TIMES_S = [t - TVS_PUBLISHED_TIMES_S[0] + HABITUATION_S for t in TVS_PUBLISHED_TIMES_S]
 TVS_FREQS_KHZ = [12, 4, 16, 20, 8, 4, 20, 16, 12, 8, 8, 16, 4, 20, 12]
 
-HABITUATION_NAME = "Startle Habituation"
+# 10 ms tones with a 5 ms rise and fall at 8 kHz and 115 dB, every 15 s (formerly "Startle Habituation").
+HABITUATION_NAME = "Startle Habituation 10ms 115 dB"
 HABITUATION_REFERENCE = ("https://doi.org/10.3389/fnint.2013.00103 (habituation design); "
                          f"{TVS_REFERENCE} (choice of the 8 kHz tone at 115 dB)")
-# A second habituation series: 20 ms flat tones (no rise or fall) at 8 kHz and 105 dB,
-# one every 20 s (onset to onset) after the habituation.
-HABITUATION_105_NAME = "Startle Habituation 105 dB"
-HABITUATION_105_ISI_S = 20.0
+# 20 ms tones held at full level (no rise or fall) at 8 kHz and 105 dB, one every 20 s
+# (onset to onset). Formerly "Startle Habituation 105 dB".
+HABITUATION_20MS_NAME = "Startle Habituation 20ms 105 dB"
+HABITUATION_20MS_ISI_S = 20.0
 HEARING_NAME = "Hearing Test"
 HEARING_REFERENCE = "https://iacuc.ucsf.edu/content/acoustic-startle-response (UCSF IACUC standard procedure)"
 # 70 dB and up: the 65 dB background noise stays on, and would mask quieter tones.
@@ -78,13 +79,13 @@ BUILTINS = {
         "end_padding_s": 30.0,
         "trials": [{"time_s": HABITUATION_S + 15 * i, "freq_hz": 8000} for i in range(100)],
     },
-    HABITUATION_105_NAME: {
-        "name": HABITUATION_105_NAME, "type": "list", "builtin": True,
+    HABITUATION_20MS_NAME: {
+        "name": HABITUATION_20MS_NAME, "type": "list", "builtin": True,
         "assay_variant": "Startle Habituation", "reference": "",
         "startle": {"stimulus": "tone", "rise_ms": 0.0, "plateau_ms": 20.0, "fall_ms": 0.0, "level_db": 105.0},
         "background_noise_db": 65.0,
         "end_padding_s": 30.0,
-        "trials": [{"time_s": HABITUATION_S + HABITUATION_105_ISI_S * i, "freq_hz": 8000} for i in range(100)],
+        "trials": [{"time_s": HABITUATION_S + HABITUATION_20MS_ISI_S * i, "freq_hz": 8000} for i in range(100)],
     },
     HEARING_NAME: {
         "name": HEARING_NAME, "type": "list", "builtin": True, "assay_variant": "",
@@ -112,7 +113,18 @@ BUILTINS = {
         "seed": None,
     },
 }
-LEGACY_BUILTIN_NAMES = ["ASR Standard"]   # old name of Tone Volume Sensitivity
+# Built-ins that were renamed: old name -> current name.
+RENAMED_BUILTINS = {"ASR Standard": TVS_NAME,
+                    "Startle Habituation": HABITUATION_NAME,
+                    "Startle Habituation 105 dB": HABITUATION_20MS_NAME,
+                    # names tried briefly while 1.3.13 was being made
+                    "Variable Startle Habituation": HABITUATION_NAME,
+                    "Constant Startle Habituation": HABITUATION_20MS_NAME}
+
+
+def current_name(name):
+    """A protocol's current name (a renamed built-in's old name gives its new one)."""
+    return RENAMED_BUILTINS.get(name, name)
 OLD_NOISE_OFF_KEY = "background_noise_off_s"   # before 1.3.10: time to turn the noise off
 
 DEFAULT_LIST = {
@@ -188,7 +200,7 @@ def ensure_builtin():
         path = config.PROTOCOL_DIR / _filename(name)
         if config.load_json(path, None) != proto:
             config.save_json(path, proto)
-    for old in LEGACY_BUILTIN_NAMES:      # the built-in under its old name
+    for old in RENAMED_BUILTINS:          # the built-in under its old name
         path = config.PROTOCOL_DIR / _filename(old)
         try:
             if json.loads(path.read_text(encoding="utf-8")).get("builtin"):
@@ -229,6 +241,7 @@ def list_protocols():
 
 
 def load(name):
+    name = current_name(name)
     if name in BUILTINS:
         return copy.deepcopy(BUILTINS[name])
     for _, data in _user_files():

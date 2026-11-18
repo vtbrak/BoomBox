@@ -116,7 +116,7 @@ clap step to the first picture where your hands touch. The window averages the c
 
 Every protocol starts with a **5-minute habituation** in 65 dB background white noise, and the noise
 keeps playing through every stimulus until the session ends. Tones are 10 ms bursts with a
-raised-cosine envelope (5 ms rise, 5 ms fall, no plateau), except in Startle Habituation 105 dB.
+raised-cosine envelope (5 ms rise, 5 ms fall, no plateau), except in Startle Habituation 20ms 105 dB.
 
 The Protocol tab shows what a protocol will run before anything else:
 
@@ -147,11 +147,11 @@ your own copy.
   20, 8, 4, 20, 16, 12, 8, 8, 16, 4, 20, 12 kHz at 300, 337, 365, 398, 428, 440, 471, 514, 533, 568,
   599, 638, 666, 695 and 710 s. That's the published series (first tone at 120 s), shifted so the
   first tone comes right after the habituation. From https://doi.org/10.1016/j.jneumeth.2025.110497.
-- **Startle Habituation**: 100 tones at 8 kHz and 115 dB, one every 15 s from 300 s. Recorded with
+- **Startle Habituation 10ms 115 dB** (formerly "Startle Habituation"): 100 tones at 8 kHz and 115 dB, one every 15 s from 300 s. Recorded with
   the `Startle Habituation` assay variant. The habituation design is from
   https://doi.org/10.3389/fnint.2013.00103; the 8 kHz frequency and 115 dB level
   were chosen from https://doi.org/10.1016/j.jneumeth.2025.110497.
-- **Startle Habituation 105 dB**: 100 tones at 8 kHz and 105 dB, one every 20 s (onset to onset)
+- **Startle Habituation 20ms 105 dB** (formerly "Startle Habituation 105 dB"): 100 tones at 8 kHz and 105 dB, one every 20 s (onset to onset)
   from 300 s: 38.5 minutes. Each tone is 20 ms at full level, with no rise or fall, so its start and
   end are abrupt. Recorded with the `Startle Habituation` assay variant.
 - **Hearing Test**: 8 kHz tones from 70 to 120 dB in 5 dB steps (70, 75, 80 … 120), in two ascending

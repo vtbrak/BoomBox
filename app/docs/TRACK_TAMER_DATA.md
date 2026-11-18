@@ -1,7 +1,7 @@
 # Boom Box data for Track Tamer
 
 What Boom Box saves beside each video, and how to read it. This describes
-**Boom Box 1.3.12**, writing **schema 1** of the Track Tamer video metadata
+**Boom Box 1.3.13**, writing **schema 1** of the Track Tamer video metadata
 standard (final since 2026-11-12). It adds Boom Box's specifics to that standard and doesn't
 replace it.
 
@@ -82,7 +82,7 @@ left as `_video.mp4`. Track Tamer can skip such folders. (Since Boom Box 1.3.2.)
 | Field | How Boom Box fills it |
 |---|---|
 | `schema_version` | `1` |
-| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.12` |
+| `app_name`, `app_version` | `Boom Box`, e.g. `1.3.13` |
 | `date`, `start_time` | The computer's clock at video frame 0 |
 | `assay` | Always `Acoustic Startle Response` |
 | `assay_variant` | Set per protocol: `Prepulse Inhibition`, `Startle Habituation`, or left out for plain startle |
@@ -327,13 +327,13 @@ less sensitive there. A blank doesn't mean the tone didn't play.
 `boom_box.protocol_name` says which protocol was run. Every protocol starts with
 a **5-minute habituation** in 65 dB background white noise, so the first
 stimulus is at 300 s or later. Tones are 10 ms bursts (5 ms rise, 5 ms fall), except in
-`Startle Habituation 105 dB`.
+`Startle Habituation 20ms 105 dB`.
 
 | `protocol_name` | What it plays | `assay_variant` | Group results by |
 |---|---|---|---|
 | `Tone Volume Sensitivity` | 15 tones at 105 dB: three each at 4, 8, 12, 16 and 20 kHz, in a fixed order, at 300–710 s. Formerly called `ASR Standard` | left out | `pulse_freq_hz` |
-| `Startle Habituation` | 100 tones at 8 kHz and 115 dB, one every 15 s from 300 s | `Startle Habituation` | stimulus order (trial 1 to 100) |
-| `Startle Habituation 105 dB` | 100 tones at 8 kHz and 105 dB, one every 20 s from 300 s. Each tone is 20 ms at full level with no rise or fall (from 1.3.12) | `Startle Habituation` | stimulus order (trial 1 to 100) |
+| `Startle Habituation 10ms 115 dB` | 100 tones at 8 kHz and 115 dB, one every 15 s from 300 s. Called `Startle Habituation` before 1.3.13 | `Startle Habituation` | stimulus order (trial 1 to 100) |
+| `Startle Habituation 20ms 105 dB` | 100 tones at 8 kHz and 105 dB, one every 20 s from 300 s. Each tone is 20 ms at full level with no rise or fall. Added in 1.3.12 as `Startle Habituation 105 dB`, renamed in 1.3.13 | `Startle Habituation` | stimulus order (trial 1 to 100) |
 | `Hearing Test` | 44 tones at 8 kHz: 70, 75 … 120 dB in four series (ascending, descending, ascending, descending), one every 15 s from 315 s, with the background noise on throughout. **Before 1.3.10:** 36 tones at 40, 50 … 120 dB, with the background noise turned off at 300 s | left out | `pulse_db` |
 | `I/O` | Input/output curve: 40 ms white-noise bursts at 70, 80, 90, 100, 110 and 120 dB plus no-stimulus trials, five of each, in five blocks with each block shuffled, one every 15 s from 300 s (35 trials). Background noise stays on throughout | left out | `pulse_db` (no-stimulus trials as baseline) |
 | `PPI Default` and other PPI protocols | Pulses, prepulse+pulse, prepulse-only and no-stimulus trials in random order (unless a seed is set) | `Prepulse Inhibition` | `type`, `prepulse_db`, `interval_ms` |

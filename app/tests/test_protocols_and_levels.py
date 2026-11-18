@@ -23,7 +23,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual([t["ref_time_s"] for t in tvs][:2], [300, 337])
         hab, _ = protocols.build_schedule(protocols.BUILTINS[protocols.HABITUATION_NAME])
         self.assertEqual(len(hab), 100)
-        hab105, total = protocols.build_schedule(protocols.BUILTINS[protocols.HABITUATION_105_NAME])
+        hab105, total = protocols.build_schedule(protocols.BUILTINS[protocols.HABITUATION_20MS_NAME])
         self.assertEqual(len(hab105), 100)
         self.assertEqual([t["ref_time_s"] for t in hab105[:3]], [300, 320, 340])
         pulse = hab105[0]["pulse"]
@@ -94,6 +94,25 @@ class ProtocolTests(unittest.TestCase):
         widths = {round(sum(t["pulse"][k] for k in ("rise_ms", "plateau_ms", "fall_ms")), 6)
                   for t in trials if t["pulse"]}
         self.assertEqual(widths, {40.0})
+
+    def test_renamed_built_ins_keep_working_under_their_old_names(self):
+        self.assertEqual(protocols.HABITUATION_NAME, "Startle Habituation 10ms 115 dB")
+        self.assertEqual(protocols.HABITUATION_20MS_NAME, "Startle Habituation 20ms 105 dB")
+        with protocol_dirs() as (d, _):
+            d.mkdir()
+            for old in ("Startle Habituation", "Startle Habituation 105 dB"):
+                (d / (old.replace(" ", "_") + ".json")).write_text(json.dumps({"name": old, "builtin": True}))
+            protocols.ensure_builtin()
+            self.assertFalse((d / "Startle_Habituation.json").exists())
+            self.assertFalse((d / "Startle_Habituation_105_dB.json").exists())
+            self.assertTrue((d / "Startle_Habituation_20ms_105_dB.json").exists())
+            self.assertNotIn("Startle Habituation", protocols.list_protocols())
+            self.assertEqual(protocols.load("Startle Habituation")["name"], "Startle Habituation 10ms 115 dB")
+            self.assertEqual(protocols.load("Startle Habituation 105 dB")["name"], "Startle Habituation 20ms 105 dB")
+        self.assertEqual(protocols.current_name("ASR Standard"), protocols.TVS_NAME)
+        # The assay variant is the metadata standard's name and doesn't change.
+        for name in (protocols.HABITUATION_NAME, protocols.HABITUATION_20MS_NAME):
+            self.assertEqual(protocols.BUILTINS[name]["assay_variant"], "Startle Habituation")
 
     def test_builtin_files_are_refreshed_to_this_version(self):
         with protocol_dirs() as (d, _):
